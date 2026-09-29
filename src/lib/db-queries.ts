@@ -1,132 +1,244 @@
 import { prisma } from "./prisma";
 
-/**
- * Fetch all problems with their accepted solutions and revision schedules
- */
-export async function getProblemsFromDb() {
-  return prisma.problem.findMany({
-    include: {
-      solutions: {
-        where: { isAccepted: true },
-      },
-      revisionSchedules: true,
-    },
-    orderBy: {
-      leetcodeId: "asc",
-    },
-  });
+export interface DashboardStats {
+  totalProblems: number;
+  totalSolved: number;
+  solvedCount: number;
+  dueTodayCount: number;
+  practiceStreakDays: number;
+  easyTotal: number;
+  easySolved: number;
+  mediumTotal: number;
+  mediumSolved: number;
+  hardTotal: number;
+  hardSolved: number;
 }
 
-/**
- * Fetch a single problem by its unique slug
- */
-export async function getProblemBySlugFromDb(slug: string) {
-  return prisma.problem.findUnique({
-    where: { slug },
-    include: {
-      solutions: true,
-      practiceAttempts: {
-        orderBy: { createdAt: "desc" },
-        take: 5,
-      },
-      revisionSchedules: true,
-    },
-  });
+export interface DashboardRevisionItem {
+  id: string;
+  number: number;
+  title: string;
+  slug: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  topics: string[];
+  lastPracticed: string;
+  nextReview: string;
 }
 
-/**
- * Fetch problems that are currently due for review
- */
-export async function getDueProblemsFromDb(userId?: string) {
+export interface DashboardRecentItem {
+  id: string;
+  problemNumber: number;
+  problemTitle: string;
+  slug: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  lastPracticed: string;
+  result: "Passed" | "Partial" | "Needs Review";
+}
+
+export interface DashboardData {
+  stats: DashboardStats;
+  revisionProblems: DashboardRevisionItem[];
+  recentPractices: DashboardRecentItem[];
+}
+
+function formatRelativeTime(date?: Date | null): string {
+  if (!date) return "Never";
   const now = new Date();
-  return prisma.revisionSchedule.findMany({
-    where: {
-      status: "Due",
-      nextReviewAt: {
-        lte: now,
-      },
-      ...(userId ? { userId } : {}),
-    },
-    include: {
-      problem: {
-        include: {
-          solutions: true,
-        },
-      },
-    },
-    orderBy: {
-      nextReviewAt: "asc",
-    },
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffDay === 0) {
+    if (diffHour === 0) {
+      if (diffMin <= 1) return "Just now";
+      return `${diffMin} mins ago`;
+    }
+    return `${diffHour} hour${diffHour > 1 ? "s" : ""} ago`;
+  }
+  if (diffDay === 1) return "Yesterday";
+  if (diffDay < 30) return `${diffDay} days ago`;
+  return new Date(date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
   });
 }
 
-/**
- * Record a practice attempt for a problem
- */
-export async function savePracticeAttemptToDb(data: {
-  problemId: string;
-  userId?: string;
-  language: string;
-  code: string;
-  status: "Passed" | "Partial" | "Needs Review";
-  startedAt?: Date;
-  completedAt?: Date;
-}) {
-  return prisma.practiceAttempt.create({
-    data: {
-      problemId: data.problemId,
-      userId: data.userId,
-      language: data.language,
-      code: data.code,
-      status: data.status,
-      startedAt: data.startedAt ?? new Date(),
-      completedAt: data.completedAt ?? new Date(),
-    },
+function calculateStreak(attempts: { createdAt: Date }[]): number {
+  if (attempts.length === 0) return 0;
+
+  // Extract unique calendar dates in YYYY-MM-DD
+  const dateSet = new Set<string>();
+  attempts.forEach((a) => {
+    const d = new Date(a.createdAt);
+    dateSet.add(d.toISOString().split("T")[0]);
   });
+
+  const sortedDates = Array.from(dateSet).sort().reverse();
+  if (sortedDates.length === 0) return 0;
+
+  const today = new Date().toISOString().split("T")[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+
+  // Must have practiced today or yesterday to have an active streak
+  const mostRecent = sortedDates[0];
+  if (mostRecent !== today && mostRecent !== yesterday) {
+    return 0;
+  }
+
+  let streak = 0;
+  let checkDate = new Date(mostRecent);
+
+  for (const dateStr of sortedDates) {
+    const expected = checkDate.toISOString().split("T")[0];
+    if (dateStr === expected) {
+      streak++;
+      // Move to day before
+      checkDate = new Date(checkDate.getTime() - 86400000);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
 }
 
 /**
- * Update revision schedule after a practice attempt
+ * Fetch all dashboard metrics with real database queries
  */
-export async function updateRevisionScheduleInDb(data: {
-  problemId: string;
-  userId: string;
-  confidence: "High" | "Medium" | "Low";
-}) {
-  const current = await prisma.revisionSchedule.findUnique({
-    where: {
-      problemId_userId: {
-        problemId: data.problemId,
-        userId: data.userId,
+export async function getDashboardData(): Promise<DashboardData> {
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+
+  // 1. Parallel database queries for performance
+  const [
+    allProblems,
+    dueSchedules,
+    recentAttempts,
+    passedAttempts,
+    acceptedSolutions,
+    allAttemptsForStreak,
+  ] = await Promise.all([
+    prisma.problem.findMany({
+      select: {
+        id: true,
+        leetcodeId: true,
+        title: true,
+        slug: true,
+        difficulty: true,
+        tags: true,
       },
-    },
+      orderBy: { leetcodeId: "asc" },
+    }),
+
+    prisma.revisionSchedule.findMany({
+      where: {
+        nextReviewAt: { lte: endOfToday },
+      },
+      include: {
+        problem: true,
+      },
+      orderBy: { nextReviewAt: "asc" },
+      take: 8,
+    }),
+
+    prisma.practiceAttempt.findMany({
+      take: 5,
+      orderBy: { createdAt: "desc" },
+      include: {
+        problem: true,
+      },
+    }),
+
+    prisma.practiceAttempt.findMany({
+      where: { status: "Passed" },
+      select: { problemId: true },
+      distinct: ["problemId"],
+    }),
+
+    prisma.solution.findMany({
+      where: { isAccepted: true },
+      select: { problemId: true },
+      distinct: ["problemId"],
+    }),
+
+    prisma.practiceAttempt.findMany({
+      select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+  ]);
+
+  // 2. Compute Solved Problem Set
+  const solvedProblemIdSet = new Set<string>();
+  passedAttempts.forEach((a) => solvedProblemIdSet.add(a.problemId));
+  acceptedSolutions.forEach((s) => solvedProblemIdSet.add(s.problemId));
+
+  // 3. Difficulty Breakdown
+  let easyTotal = 0;
+  let easySolved = 0;
+  let mediumTotal = 0;
+  let mediumSolved = 0;
+  let hardTotal = 0;
+  let hardSolved = 0;
+
+  allProblems.forEach((p) => {
+    const isSolved = solvedProblemIdSet.has(p.id);
+    const diff = p.difficulty as "Easy" | "Medium" | "Hard";
+    if (diff === "Easy") {
+      easyTotal++;
+      if (isSolved) easySolved++;
+    } else if (diff === "Medium") {
+      mediumTotal++;
+      if (isSolved) mediumSolved++;
+    } else if (diff === "Hard") {
+      hardTotal++;
+      if (isSolved) hardSolved++;
+    }
   });
 
-  const currentInterval = current?.interval ?? 1;
-  const multiplier = data.confidence === "High" ? 2.0 : data.confidence === "Medium" ? 1.5 : 1.0;
-  const nextInterval = Math.max(1, Math.round(currentInterval * multiplier));
-  const nextReviewAt = new Date(Date.now() + nextInterval * 24 * 60 * 60 * 1000);
+  // 4. Calculate Streak
+  const practiceStreakDays = calculateStreak(allAttemptsForStreak);
 
-  return prisma.revisionSchedule.upsert({
-    where: {
-      problemId_userId: {
-        problemId: data.problemId,
-        userId: data.userId,
-      },
+  // 5. Map Revision Items
+  const revisionProblems: DashboardRevisionItem[] = dueSchedules.map((schedule) => ({
+    id: schedule.problem.id,
+    number: schedule.problem.leetcodeId,
+    title: schedule.problem.title,
+    slug: schedule.problem.slug,
+    difficulty: schedule.problem.difficulty as "Easy" | "Medium" | "Hard",
+    topics: schedule.problem.tags,
+    lastPracticed: formatRelativeTime(schedule.lastPracticedAt),
+    nextReview: "Today",
+  }));
+
+  // 6. Map Recent Practice Items
+  const recentPractices: DashboardRecentItem[] = recentAttempts.map((attempt) => ({
+    id: attempt.id,
+    problemNumber: attempt.problem.leetcodeId,
+    problemTitle: attempt.problem.title,
+    slug: attempt.problem.slug,
+    difficulty: attempt.problem.difficulty as "Easy" | "Medium" | "Hard",
+    lastPracticed: formatRelativeTime(attempt.createdAt),
+    result: (attempt.status as "Passed" | "Partial" | "Needs Review") || "Passed",
+  }));
+
+  return {
+    stats: {
+      totalProblems: allProblems.length,
+      totalSolved: solvedProblemIdSet.size,
+      solvedCount: solvedProblemIdSet.size,
+      dueTodayCount: dueSchedules.length,
+      practiceStreakDays,
+      easyTotal,
+      easySolved,
+      mediumTotal,
+      mediumSolved,
+      hardTotal,
+      hardSolved,
     },
-    update: {
-      lastPracticedAt: new Date(),
-      nextReviewAt,
-      interval: nextInterval,
-      status: "Mastered",
-    },
-    create: {
-      problemId: data.problemId,
-      userId: data.userId,
-      lastPracticedAt: new Date(),
-      nextReviewAt,
-      interval: nextInterval,
-      status: "Mastered",
-    },
-  });
+    revisionProblems,
+    recentPractices,
+  };
 }

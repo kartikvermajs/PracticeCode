@@ -12,7 +12,7 @@ export function ProgressCard({ stats }: ProgressCardProps) {
       label: "Easy",
       solved: stats.easySolved,
       total: stats.easyTotal,
-      percentage: Math.round((stats.easySolved / stats.easyTotal) * 100),
+      percentage: stats.easyTotal > 0 ? Math.round((stats.easySolved / stats.easyTotal) * 100) : 0,
       barColor: "bg-emerald-500",
       textColor: "text-emerald-700",
       bgLight: "bg-emerald-50",
@@ -22,7 +22,7 @@ export function ProgressCard({ stats }: ProgressCardProps) {
       label: "Medium",
       solved: stats.mediumSolved,
       total: stats.mediumTotal,
-      percentage: Math.round((stats.mediumSolved / stats.mediumTotal) * 100),
+      percentage: stats.mediumTotal > 0 ? Math.round((stats.mediumSolved / stats.mediumTotal) * 100) : 0,
       barColor: "bg-amber-500",
       textColor: "text-amber-700",
       bgLight: "bg-amber-50",
@@ -32,7 +32,7 @@ export function ProgressCard({ stats }: ProgressCardProps) {
       label: "Hard",
       solved: stats.hardSolved,
       total: stats.hardTotal,
-      percentage: Math.round((stats.hardSolved / stats.hardTotal) * 100),
+      percentage: stats.hardTotal > 0 ? Math.round((stats.hardSolved / stats.hardTotal) * 100) : 0,
       barColor: "bg-rose-500",
       textColor: "text-rose-700",
       bgLight: "bg-rose-50",
@@ -40,11 +40,12 @@ export function ProgressCard({ stats }: ProgressCardProps) {
     },
   ];
 
-  const totalMastery = Math.round(
-    ((stats.easySolved + stats.mediumSolved + stats.hardSolved) /
-      (stats.easyTotal + stats.mediumTotal + stats.hardTotal)) *
-      100
-  );
+  const totalPool = stats.easyTotal + stats.mediumTotal + stats.hardTotal;
+  const totalMastery = totalPool > 0
+    ? Math.round(
+        ((stats.easySolved + stats.mediumSolved + stats.hardSolved) / totalPool) * 100
+      )
+    : 0;
 
   return (
     <div className="rounded-2xl bg-white border border-slate-200/80 p-6 shadow-xs flex flex-col justify-between h-full">

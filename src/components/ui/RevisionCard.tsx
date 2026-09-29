@@ -6,7 +6,15 @@ import { DifficultyBadge } from "./DifficultyBadge";
 import { TopicBadge } from "./TopicBadge";
 
 interface RevisionCardProps {
-  problem: Problem;
+  problem: {
+    number: number;
+    title: string;
+    slug: string;
+    difficulty: "Easy" | "Medium" | "Hard";
+    topics: string[];
+    lastPracticed: string;
+    nextReview?: string;
+  };
 }
 
 export function RevisionCard({ problem }: RevisionCardProps) {
