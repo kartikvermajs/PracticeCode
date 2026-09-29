@@ -5,17 +5,20 @@ import {
   ArrowLeft,
   ExternalLink,
   Play,
-  Share2,
   Clock,
   Sparkles,
-  Calendar,
-  CheckCircle2,
+  BookOpen,
+  HelpCircle,
+  FileCode2,
 } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 import { MOCK_PROBLEMS } from "@/data/mock-problems";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { TopicBadge } from "@/components/ui/TopicBadge";
-import { CodePanel } from "@/components/ui/CodePanel";
-import { prisma } from "@/lib/prisma";
+import {
+  ReadOnlySolutionPanel,
+  SolutionItem,
+} from "@/components/problems/ReadOnlySolutionPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -26,92 +29,131 @@ interface PageProps {
 export default async function ProblemDetailPage({ params }: PageProps) {
   const { slug } = await params;
 
-  // 1. Check real database first
-  const dbProblem = await prisma.problem.findUnique({
-    where: { slug },
-    include: {
-      solutions: true,
-      practiceAttempts: { orderBy: { createdAt: "desc" }, take: 1 },
-      revisionSchedules: true,
-    },
-  }).catch(() => null);
-
-  let problem;
-  if (dbProblem) {
-    const primarySolution = dbProblem.solutions[0];
-    const lastAttempt = dbProblem.practiceAttempts[0];
-    const schedule = dbProblem.revisionSchedules[0];
-
-    problem = {
-      id: dbProblem.id,
-      slug: dbProblem.slug,
-      number: dbProblem.leetcodeId,
-      title: dbProblem.title,
-      difficulty: (dbProblem.difficulty as "Easy" | "Medium" | "Hard") || "Easy",
-      topics: dbProblem.tags,
-      status: "Solved" as const,
-      lastPracticed: lastAttempt ? "Recently" : "Not yet",
-      nextReview: schedule?.status || "Due",
-      isDue: schedule?.status === "Due",
-      leetcodeUrl: dbProblem.url,
-      acceptanceRate: "72.4%",
-      description: dbProblem.description,
-      examples: (dbProblem.examples as Array<{ input: string; output: string; explanation?: string }>) || [],
-      constraints: dbProblem.constraints || [],
-      originalSolution: {
-        language: primarySolution?.language || "typescript",
-        code: primarySolution?.code || "// No accepted solution stored yet",
-        timeComplexity: "O(n)",
-        spaceComplexity: "O(1)",
-        notes: "Stored accepted solution from your personal library.",
+  // 1. Fetch real problem data directly from Neon PostgreSQL
+  const dbProblem = await prisma.problem
+    .findUnique({
+      where: { slug },
+      include: {
+        solutions: {
+          where: { isAccepted: true },
+          orderBy: { createdAt: "asc" },
+        },
+        revisionSchedules: true,
+        practiceAttempts: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
       },
-    };
-  } else {
-    problem = MOCK_PROBLEMS.find((p) => p.slug === slug);
-  }
+    })
+    .catch(() => null);
 
-  if (!problem) {
-    notFound();
+  // 2. Prepare problem structure (with fallback to mock if DB doesn't have it yet)
+  let problemNumber: number;
+  let problemTitle: string;
+  let problemDifficulty: "Easy" | "Medium" | "Hard";
+  let problemTags: string[];
+  let problemDescription: string;
+  let problemExamples: Array<{
+    input: string;
+    output: string;
+    explanation?: string;
+  }>;
+  let problemConstraints: string[];
+  let problemUrl: string;
+  let solutionsList: SolutionItem[] = [];
+
+  if (dbProblem) {
+    problemNumber = dbProblem.leetcodeId;
+    problemTitle = dbProblem.title;
+    problemDifficulty =
+      (dbProblem.difficulty as "Easy" | "Medium" | "Hard") || "Easy";
+    problemTags = dbProblem.tags;
+    problemDescription = dbProblem.description;
+    problemExamples = Array.isArray(dbProblem.examples)
+      ? (dbProblem.examples as Array<{
+          input: string;
+          output: string;
+          explanation?: string;
+        }>)
+      : [];
+    problemConstraints = dbProblem.constraints || [];
+    problemUrl = dbProblem.url;
+
+    solutionsList = dbProblem.solutions.map((s) => ({
+      id: s.id,
+      language: s.language,
+      code: s.code,
+      isAccepted: s.isAccepted,
+    }));
+  } else {
+    // Fallback to mock problem
+    const mock = MOCK_PROBLEMS.find((p) => p.slug === slug);
+    if (!mock) {
+      notFound();
+    }
+    problemNumber = mock.number;
+    problemTitle = mock.title;
+    problemDifficulty = mock.difficulty;
+    problemTags = mock.topics;
+    problemDescription = mock.description;
+    problemExamples = mock.examples;
+    problemConstraints = mock.constraints;
+    problemUrl = mock.leetcodeUrl;
+
+    if (mock.originalSolution) {
+      solutionsList = [
+        {
+          id: "mock-sol-1",
+          language: mock.originalSolution.language,
+          code: mock.originalSolution.code,
+          isAccepted: true,
+        },
+      ];
+    }
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 pb-12">
-      {/* Back breadcrumb and top actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-slate-200/80">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-16">
+      {/* Top Breadcrumb & Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200/80">
         <div className="flex items-center gap-3">
           <Link
             href="/problems"
             className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+            title="Back to Problems Library"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
-                #{problem.number}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                #{problemNumber}
               </span>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                {problem.title}
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                {problemTitle}
               </h1>
+              <DifficultyBadge difficulty={problemDifficulty} size="sm" />
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-3">
-          <a
-            href={problem.leetcodeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-xl shadow-2xs transition-colors"
-          >
-            <span>Open on LeetCode</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+        <div className="flex items-center gap-2.5">
+          {problemUrl && (
+            <a
+              href={problemUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors"
+            >
+              <span>Open on LeetCode</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
 
           <Link
-            href={`/practice/${problem.slug}`}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all active:scale-95"
+            href={`/practice/${slug}`}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all active:scale-95"
           >
             <Play className="w-3.5 h-3.5 fill-white" />
             <span>Start Practice</span>
@@ -119,119 +161,106 @@ export default async function ProblemDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Main Grid: Left Problem Statement, Right Original Solution */}
+      {/* Main Two-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Problem Information (7 cols) */}
+        {/* Left Column: Problem Information (Description, Examples, Constraints) */}
         <div className="lg:col-span-6 space-y-6">
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-6">
-            {/* Meta chips */}
-            <div className="flex flex-wrap items-center gap-2.5 pb-4 border-b border-slate-100">
-              <DifficultyBadge difficulty={problem.difficulty} />
+          <div className="p-6 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-6">
+            {/* Tags & Meta Chips */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
               <div className="flex flex-wrap gap-1.5">
-                {problem.topics.map((t) => (
-                  <TopicBadge key={t} topic={t} />
+                {problemTags.map((tag) => (
+                  <TopicBadge key={tag} topic={tag} />
                 ))}
               </div>
-              <div className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Last practiced: {problem.lastPracticed}</span>
-              </div>
+              <span className="text-[11px] font-semibold text-slate-400">
+                LeetCode #{problemNumber}
+              </span>
             </div>
 
-            {/* Description */}
+            {/* Problem Description */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Problem Description
-              </h3>
-              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line space-y-2">
-                {problem.description}
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>Problem Description</span>
+              </div>
+              <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-line space-y-3 font-normal">
+                {problemDescription}
               </div>
             </div>
 
             {/* Examples */}
-            <div className="space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Examples
-              </h3>
-              {problem.examples.map((example, idx) => (
-                <div
-                  key={idx}
-                  className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/60 font-mono text-xs space-y-1.5"
-                >
-                  <p className="font-semibold text-slate-700">Example {idx + 1}:</p>
-                  <div className="space-y-1 text-slate-600 pl-2 border-l-2 border-blue-500/40">
-                    <p>
-                      <strong className="text-slate-800">Input:</strong> {example.input}
-                    </p>
-                    <p>
-                      <strong className="text-slate-800">Output:</strong> {example.output}
-                    </p>
-                    {example.explanation && (
-                      <p className="font-sans text-[11px] text-slate-500 pt-0.5">
-                        <strong className="text-slate-700">Explanation:</strong>{" "}
-                        {example.explanation}
+            {problemExamples.length > 0 && (
+              <div className="space-y-4 pt-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Examples
+                </h3>
+                <div className="space-y-3">
+                  {problemExamples.map((ex, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 font-mono text-xs space-y-2"
+                    >
+                      <p className="font-bold text-slate-700 font-sans text-xs">
+                        Example {idx + 1}:
                       </p>
-                    )}
-                  </div>
+                      <div className="space-y-1.5 pl-3 border-l-2 border-blue-500/50">
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                          <span className="font-bold text-slate-800 font-sans">
+                            Input:
+                          </span>
+                          <span className="text-slate-700 font-mono">
+                            {ex.input}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-baseline gap-1.5">
+                          <span className="font-bold text-slate-800 font-sans">
+                            Output:
+                          </span>
+                          <span className="text-slate-700 font-mono">
+                            {ex.output}
+                          </span>
+                        </div>
+                        {ex.explanation && (
+                          <div className="pt-1 font-sans text-[11px] text-slate-500">
+                            <strong className="text-slate-700">
+                              Explanation:
+                            </strong>{" "}
+                            {ex.explanation}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
             {/* Constraints */}
-            <div className="space-y-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Constraints
-              </h3>
-              <ul className="space-y-1.5 list-disc pl-4 text-xs font-mono text-slate-600">
-                {problem.constraints.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
-            </div>
+            {problemConstraints.length > 0 && (
+              <div className="space-y-2.5 pt-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Constraints
+                </h3>
+                <ul className="space-y-1.5 list-disc pl-5 text-xs font-mono text-slate-700 bg-slate-50/50 p-4 rounded-xl border border-slate-200/60">
+                  {problemConstraints.map((constraint, i) => (
+                    <li key={i} className="leading-relaxed">
+                      {constraint}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right Column: Original Solution / Reference Panel (6 cols) */}
-        <div className="lg:col-span-6 space-y-5 lg:sticky lg:top-20">
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-violet-500/10 border border-blue-200/60">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-bold text-blue-900">
-                  Reference Vault
-                </span>
-              </div>
-              <span className="text-[11px] text-blue-700 font-medium">
-                Your past accepted submission
-              </span>
-            </div>
-          </div>
-
-          {/* Read-only Code Panel */}
-          <CodePanel
-            code={problem.originalSolution.code}
-            language={problem.originalSolution.language}
-            timeComplexity={problem.originalSolution.timeComplexity}
-            spaceComplexity={problem.originalSolution.spaceComplexity}
-            notes={problem.originalSolution.notes}
+        {/* Right Column: "Your Original Solution" (Read-Only Monaco Editor) */}
+        <div className="lg:col-span-6 lg:sticky lg:top-20 space-y-4">
+          <ReadOnlySolutionPanel
+            solutions={solutionsList}
+            slug={slug}
+            leetcodeUrl={problemUrl}
           />
-
-          {/* Bottom Action Bar */}
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold text-slate-900">Ready to test your recall?</p>
-              <p className="text-[11px] text-slate-500">
-                Practice in the clean editor without glancing at this solution.
-              </p>
-            </div>
-            <Link
-              href={`/practice/${problem.slug}`}
-              className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all active:scale-95 shrink-0"
-            >
-              <Play className="w-3.5 h-3.5 fill-white" />
-              <span>Launch Practice</span>
-            </Link>
-          </div>
         </div>
       </div>
     </div>
