@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Plus, BookOpen, CheckCircle2, Sparkles, Layers } from "lucide-react";
+import { Plus, BookOpen, CheckCircle2, Sparkles, Layers, Download } from "lucide-react";
 import { ProblemsLibraryResult } from "@/lib/db-queries";
 import { ProblemsFilterToolbar } from "./ProblemsFilterToolbar";
 import { ProblemsTable } from "./ProblemsTable";
@@ -46,7 +46,15 @@ export function ProblemsLibraryView({ data }: ProblemsLibraryViewProps) {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/problems/import"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs sm:text-sm font-bold shadow-2xs transition-all active:scale-95"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            <span>Bulk Import</span>
+          </Link>
+
           <Link
             href="/problems/new"
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs transition-all active:scale-95"

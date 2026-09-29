@@ -36,3 +36,37 @@ export function slugToTitle(slug: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
+
+/**
+ * Parses user bulk input (URLs, slugs, comma/newline separated)
+ * into a unique list of problem slugs.
+ */
+export function parseBulkImportInput(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split(/[\r\n,;]+/);
+  const seen = new Set<string>();
+  const results: string[] = [];
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) continue;
+
+    // If it is a full URL, extract slug
+    let slug = extractSlugFromLeetCodeUrl(trimmed);
+
+    // If not a URL, sanitize as a direct slug (e.g. "two-sum")
+    if (!slug) {
+      slug = trimmed
+        .toLowerCase()
+        .replace(/^https?:\/\/.*?\//i, "")
+        .replace(/[^\w-]/g, "");
+    }
+
+    if (slug && !seen.has(slug)) {
+      seen.add(slug);
+      results.push(slug);
+    }
+  }
+
+  return results;
+}

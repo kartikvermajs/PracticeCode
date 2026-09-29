@@ -20,6 +20,7 @@ import {
   Download,
   Info,
   ExternalLink,
+  ArrowRight,
 } from "lucide-react";
 import { extractSlugFromLeetCodeUrl } from "@/lib/problem-utils";
 import { LeetCodeParsedProblem } from "@/lib/leetcode/types";
@@ -513,12 +514,21 @@ export function AddProblemForm() {
           </div>
         )}
 
-        {/* Security & Compliance Info Footer */}
-        <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
-          <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span>
-            Complies with security rules: never asks for or stores passwords or cookies. Uses public question endpoints with graceful manual fallback.
-          </span>
+        {/* Security & Compliance Info Footer + Bulk Import link */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-blue-100/80 text-[11px] text-slate-500">
+          <div className="flex items-center gap-1.5">
+            <Info className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>
+              Complies with security rules: never asks for or stores passwords or cookies.
+            </span>
+          </div>
+          <Link
+            href="/problems/import"
+            className="font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 shrink-0"
+          >
+            <span>Need to import multiple problems? Try Bulk Import</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
       </div>
 
