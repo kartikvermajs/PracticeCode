@@ -35,13 +35,13 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
       name: "Problems",
       href: "/problems",
       icon: Layers,
-      badge: "82",
+      badge: "1",
     },
     {
       name: "Due for Revision",
       href: "/due",
       icon: ClockAlert,
-      badge: "4 due",
+      badge: "1 due",
       badgeColor: "bg-amber-100 text-amber-800",
     },
     {
@@ -189,7 +189,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
             <span>Spaced Repetition</span>
           </div>
           <p className="text-[11px] text-violet-700 mt-1">
-            4 problems due today. Keep your recall sharp!
+            1 problem due today. Keep your recall sharp!
           </p>
         </div>
       </div>

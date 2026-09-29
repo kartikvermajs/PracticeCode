@@ -24,17 +24,7 @@ import { QuickActions } from "@/components/ui/QuickActions";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 
 export default function DashboardPage() {
-  // Grab the 4 problems specifically requested for Today's Revision:
-  // Single Number (#136), Two Sum (#1), Binary Search (#704), Valid Parentheses (#20)
-  const todaysRevisionSlugs = [
-    "single-number",
-    "two-sum",
-    "binary-search",
-    "valid-parentheses",
-  ];
-  const revisionProblems = MOCK_PROBLEMS.filter((p) =>
-    todaysRevisionSlugs.includes(p.slug)
-  );
+  const revisionProblems = MOCK_PROBLEMS.filter((p) => p.isDue);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -55,7 +45,7 @@ export default function DashboardPage() {
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all active:scale-95"
           >
             <Sparkles className="w-4 h-4 text-blue-200" />
-            <span>Start Revision (4 Due)</span>
+            <span>Start Revision ({MOCK_USER_STATS.dueTodayCount} Due)</span>
           </Link>
         </div>
       </div>
@@ -75,7 +65,7 @@ export default function DashboardPage() {
           subtitle="100% verified solutions"
           icon={CheckCircle2}
           variant="emerald"
-          trend={{ label: "+3 this week", positive: true }}
+          trend={{ label: "+1 this week", positive: true }}
         />
         <StatCard
           title="Due Today"
@@ -104,7 +94,7 @@ export default function DashboardPage() {
                 Today&apos;s Revision
               </h2>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                4 Problems
+                {revisionProblems.length} Problem{revisionProblems.length === 1 ? "" : "s"}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
