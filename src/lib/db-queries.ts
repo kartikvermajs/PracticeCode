@@ -263,3 +263,242 @@ export async function getDashboardData(): Promise<DashboardData> {
     };
   }
 }
+
+function formatNextReviewTime(date?: Date | null): { text: string; isDue: boolean } {
+  if (!date) return { text: "Not Scheduled", isDue: false };
+  const now = new Date();
+  const target = new Date(date);
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const targetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const diffDays = Math.round((targetDay.getTime() - todayStart.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) {
+    return { text: "Due Today", isDue: true };
+  } else if (diffDays === 1) {
+    return { text: "Tomorrow", isDue: false };
+  } else if (diffDays <= 7) {
+    return { text: `In ${diffDays} days`, isDue: false };
+  } else {
+    return {
+      text: target.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      isDue: false,
+    };
+  }
+}
+
+export interface ProblemsFilterOptions {
+  q?: string;
+  difficulty?: string;
+  tag?: string;
+  status?: string; // "all" | "solved" | "unsolved"
+  revision?: string; // "all" | "due" | "upcoming"
+  page?: number;
+  limit?: number;
+}
+
+export interface ProblemLibraryItem {
+  id: string;
+  number: number;
+  title: string;
+  slug: string;
+  difficulty: "Easy" | "Medium" | "Hard";
+  tags: string[];
+  url: string;
+  isSolved: boolean;
+  statusText: "Solved" | "Attempted" | "Unsolved";
+  isDue: boolean;
+  lastPracticed: string;
+  lastPracticedAt: Date | null;
+  nextReview: string;
+  nextReviewAt: Date | null;
+  attemptCount: number;
+}
+
+export interface ProblemsLibraryResult {
+  problems: ProblemLibraryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  allTags: string[];
+  stats: {
+    totalCount: number;
+    solvedCount: number;
+    dueCount: number;
+  };
+}
+
+/**
+ * Fetch and filter problems directly from the Problem database table
+ */
+export async function getProblemsLibrary(
+  options: ProblemsFilterOptions = {}
+): Promise<ProblemsLibraryResult> {
+  const {
+    q = "",
+    difficulty = "All",
+    tag = "All",
+    status = "All",
+    revision = "All",
+    page = 1,
+    limit = 10,
+  } = options;
+
+  try {
+    // 1. Fetch all problems with relational data from Neon PostgreSQL
+    const rawProblems = await prisma.problem.findMany({
+      include: {
+        solutions: {
+          select: { isAccepted: true },
+        },
+        practiceAttempts: {
+          select: { id: true, status: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        },
+        revisionSchedules: {
+          select: { lastPracticedAt: true, nextReviewAt: true, status: true },
+        },
+      },
+      orderBy: { leetcodeId: "asc" },
+    });
+
+    // 2. Collect all distinct tags for filter toolbar
+    const tagSet = new Set<string>();
+    rawProblems.forEach((p) => {
+      p.tags.forEach((t) => tagSet.add(t));
+    });
+    const allTags = Array.from(tagSet).sort();
+
+    // 3. Map into enriched items
+    const allItems: ProblemLibraryItem[] = rawProblems.map((p) => {
+      const hasAcceptedSolution = p.solutions.some((s) => s.isAccepted);
+      const hasPassedAttempt = p.practiceAttempts.some((a) => a.status === "Passed");
+      const isSolved = hasAcceptedSolution || hasPassedAttempt;
+
+      const latestAttempt = p.practiceAttempts[0];
+      const schedule = p.revisionSchedules[0];
+
+      const lastPracticedAt =
+        schedule?.lastPracticedAt || (latestAttempt ? latestAttempt.createdAt : null);
+      const nextReviewAt = schedule?.nextReviewAt || null;
+
+      const reviewInfo = formatNextReviewTime(nextReviewAt);
+
+      let statusText: "Solved" | "Attempted" | "Unsolved" = "Unsolved";
+      if (isSolved) {
+        statusText = "Solved";
+      } else if (p.practiceAttempts.length > 0) {
+        statusText = "Attempted";
+      }
+
+      return {
+        id: p.id,
+        number: p.leetcodeId,
+        title: p.title,
+        slug: p.slug,
+        difficulty: (p.difficulty as "Easy" | "Medium" | "Hard") || "Easy",
+        tags: p.tags,
+        url: p.url,
+        isSolved,
+        statusText,
+        isDue: reviewInfo.isDue,
+        lastPracticed: formatRelativeTime(lastPracticedAt),
+        lastPracticedAt,
+        nextReview: reviewInfo.text,
+        nextReviewAt,
+        attemptCount: p.practiceAttempts.length,
+      };
+    });
+
+    // 4. Compute overall collection stats
+    const totalCount = allItems.length;
+    const solvedCount = allItems.filter((p) => p.isSolved).length;
+    const dueCount = allItems.filter((p) => p.isDue).length;
+
+    // 5. Apply filters
+    const cleanQ = q.trim().toLowerCase();
+    const queryNum = cleanQ.replace(/^#/, "");
+
+    const filtered = allItems.filter((item) => {
+      // Search matching (by Title or LeetCode #)
+      if (cleanQ) {
+        const matchesNumber = item.number.toString().includes(queryNum);
+        const matchesTitle = item.title.toLowerCase().includes(cleanQ);
+        const matchesTag = item.tags.some((t) => t.toLowerCase().includes(cleanQ));
+        if (!matchesNumber && !matchesTitle && !matchesTag) {
+          return false;
+        }
+      }
+
+      // Difficulty filter
+      if (difficulty !== "All" && item.difficulty.toLowerCase() !== difficulty.toLowerCase()) {
+        return false;
+      }
+
+      // Topic / Tag filter
+      if (tag !== "All" && !item.tags.some((t) => t.toLowerCase() === tag.toLowerCase())) {
+        return false;
+      }
+
+      // Solved status filter
+      if (status !== "All") {
+        if (status.toLowerCase() === "solved" && !item.isSolved) {
+          return false;
+        }
+        if (status.toLowerCase() === "unsolved" && item.isSolved) {
+          return false;
+        }
+      }
+
+      // Revision status filter
+      if (revision !== "All") {
+        if (revision.toLowerCase() === "due" && !item.isDue) {
+          return false;
+        }
+        if (revision.toLowerCase() === "upcoming" && (item.isDue || !item.nextReviewAt)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // 6. Pagination
+    const validLimit = Math.max(1, Math.min(50, limit));
+    const totalPages = Math.ceil(filtered.length / validLimit) || 1;
+    const currentPage = Math.min(Math.max(1, page), totalPages);
+    const startIndex = (currentPage - 1) * validLimit;
+    const paginatedProblems = filtered.slice(startIndex, startIndex + validLimit);
+
+    return {
+      problems: paginatedProblems,
+      total: filtered.length,
+      page: currentPage,
+      limit: validLimit,
+      totalPages,
+      allTags,
+      stats: {
+        totalCount,
+        solvedCount,
+        dueCount,
+      },
+    };
+  } catch (error) {
+    console.error("Database query fallback in getProblemsLibrary:", error);
+    return {
+      problems: [],
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+      allTags: [],
+      stats: {
+        totalCount: 0,
+        solvedCount: 0,
+        dueCount: 0,
+      },
+    };
+  }
+}
+

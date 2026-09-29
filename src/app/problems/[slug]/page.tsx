@@ -15,6 +15,9 @@ import { MOCK_PROBLEMS } from "@/data/mock-problems";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { TopicBadge } from "@/components/ui/TopicBadge";
 import { CodePanel } from "@/components/ui/CodePanel";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -22,7 +25,50 @@ interface PageProps {
 
 export default async function ProblemDetailPage({ params }: PageProps) {
   const { slug } = await params;
-  const problem = MOCK_PROBLEMS.find((p) => p.slug === slug) || MOCK_PROBLEMS[0];
+
+  // 1. Check real database first
+  const dbProblem = await prisma.problem.findUnique({
+    where: { slug },
+    include: {
+      solutions: true,
+      practiceAttempts: { orderBy: { createdAt: "desc" }, take: 1 },
+      revisionSchedules: true,
+    },
+  }).catch(() => null);
+
+  let problem;
+  if (dbProblem) {
+    const primarySolution = dbProblem.solutions[0];
+    const lastAttempt = dbProblem.practiceAttempts[0];
+    const schedule = dbProblem.revisionSchedules[0];
+
+    problem = {
+      id: dbProblem.id,
+      slug: dbProblem.slug,
+      number: dbProblem.leetcodeId,
+      title: dbProblem.title,
+      difficulty: (dbProblem.difficulty as "Easy" | "Medium" | "Hard") || "Easy",
+      topics: dbProblem.tags,
+      status: "Solved" as const,
+      lastPracticed: lastAttempt ? "Recently" : "Not yet",
+      nextReview: schedule?.status || "Due",
+      isDue: schedule?.status === "Due",
+      leetcodeUrl: dbProblem.url,
+      acceptanceRate: "72.4%",
+      description: dbProblem.description,
+      examples: (dbProblem.examples as Array<{ input: string; output: string; explanation?: string }>) || [],
+      constraints: dbProblem.constraints || [],
+      originalSolution: {
+        language: primarySolution?.language || "typescript",
+        code: primarySolution?.code || "// No accepted solution stored yet",
+        timeComplexity: "O(n)",
+        spaceComplexity: "O(1)",
+        notes: "Stored accepted solution from your personal library.",
+      },
+    };
+  } else {
+    problem = MOCK_PROBLEMS.find((p) => p.slug === slug);
+  }
 
   if (!problem) {
     notFound();
