@@ -14,11 +14,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // Resolve real problem in DB if problemId is slug or id
+    const foundProblem = await prisma.problem.findFirst({
+      where: {
+        OR: [{ id: problemId }, { slug: problemId }],
+      },
+    });
+
+    const realProblemId = foundProblem ? foundProblem.id : problemId;
+
     // 1. Create PracticeAttempt record
     const now = new Date();
     const attempt = await prisma.practiceAttempt.create({
       data: {
-        problemId,
+        problemId: realProblemId,
         userId: user?.id || null,
         language: language || "typescript",
         code,
@@ -31,7 +40,7 @@ export async function POST(req: Request) {
     // 2. Update RevisionSchedule with Spaced Repetition multiplier
     const existingSchedule = await prisma.revisionSchedule.findFirst({
       where: {
-        problemId,
+        problemId: realProblemId,
         ...(user?.id ? { userId: user.id } : {}),
       },
     });
@@ -43,7 +52,7 @@ export async function POST(req: Request) {
     await prisma.revisionSchedule.upsert({
       where: {
         problemId_userId: {
-          problemId,
+          problemId: realProblemId,
           userId: user?.id || "user_kartik_dev",
         },
       },
@@ -54,7 +63,7 @@ export async function POST(req: Request) {
         status: status === "Passed" ? "Mastered" : "Due",
       },
       create: {
-        problemId,
+        problemId: realProblemId,
         userId: user?.id || "user_kartik_dev",
         lastPracticedAt: now,
         nextReviewAt,
