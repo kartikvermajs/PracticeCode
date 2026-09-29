@@ -64,22 +64,42 @@ export interface AcceptedSolutionData {
   isAccepted: boolean;
 }
 
+export interface ContinueAttemptData {
+  id: string;
+  language: string;
+  code: string;
+  status?: string;
+  attemptNumber?: number;
+}
+
 interface PracticeEditorViewProps {
   problem: ProblemPracticeData;
   acceptedSolutions: AcceptedSolutionData[];
+  continueAttempt?: ContinueAttemptData | null;
 }
 
 export function PracticeEditorView({
   problem,
   acceptedSolutions,
+  continueAttempt,
 }: PracticeEditorViewProps) {
   const { incrementStreak } = useAuth();
 
   // Active language state
-  const [language, setLanguage] = useState<SupportedLanguage>("cpp");
+  const [language, setLanguage] = useState<SupportedLanguage>(() => {
+    if (continueAttempt?.language) {
+      const match = SUPPORTED_LANGUAGES.find(
+        (l) => l.id === continueAttempt.language.toLowerCase()
+      );
+      if (match) return match.id;
+    }
+    return "cpp";
+  });
 
   // Code state
-  const [code, setCode] = useState<string>("");
+  const [code, setCode] = useState<string>(() => {
+    return continueAttempt?.code || "";
+  });
 
   // Editor states & notifications
   const [isSaving, setIsSaving] = useState(false);
@@ -90,6 +110,7 @@ export function PracticeEditorView({
   const [revealSolutionLang, setRevealSolutionLang] = useState<string>("cpp");
   const [copiedSolution, setCopiedSolution] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
+  const isInitialMount = useRef(true);
 
   // Storage key generator for persistent local drafts
   const getStorageKey = useCallback(
@@ -97,9 +118,23 @@ export function PracticeEditorView({
     [problem.slug]
   );
 
-  // Load code when language or problem changes: checks localStorage draft first;
-  // if no draft, loads clean starter template (NEVER loads accepted solution)
+  // Load code when language or problem changes:
+  // 1. If continuing an attempt on mount, load that attempt's code.
+  // 2. Otherwise check localStorage draft.
+  // 3. Otherwise load clean starter template (NEVER loads accepted solution).
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      if (continueAttempt?.code) {
+        setCode(continueAttempt.code);
+        setNotification(
+          `Resumed Attempt #${continueAttempt.attemptNumber || 1}. Past records remain immutable; saving creates a new record.`
+        );
+        setTimeout(() => setNotification(null), 4000);
+        return;
+      }
+    }
+
     const key = getStorageKey(language);
     const savedDraft = typeof window !== "undefined" ? localStorage.getItem(key) : null;
 
@@ -114,7 +149,7 @@ export function PracticeEditorView({
       setCode(template);
       setIsDraftRestored(false);
     }
-  }, [language, problem.slug, getStorageKey]);
+  }, [language, problem.slug, getStorageKey, continueAttempt]);
 
   // Handle code change and persist draft to localStorage
   const handleCodeChange = (newVal: string | undefined) => {

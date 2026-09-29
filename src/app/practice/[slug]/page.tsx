@@ -12,10 +12,13 @@ export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ continueAttemptId?: string }>;
 }
 
-export default async function PracticePage({ params }: PageProps) {
+export default async function PracticePage({ params, searchParams }: PageProps) {
   const { slug } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const continueAttemptId = resolvedSearchParams?.continueAttemptId;
 
   // 1. Fetch real problem data from Neon PostgreSQL
   const dbProblem = await prisma.problem
@@ -29,6 +32,25 @@ export default async function PracticePage({ params }: PageProps) {
       },
     })
     .catch(() => null);
+
+  // 2. Fetch continue attempt if requested
+  let continueAttempt = null;
+  if (continueAttemptId) {
+    const rawAttempt = await prisma.practiceAttempt
+      .findUnique({
+        where: { id: continueAttemptId },
+      })
+      .catch(() => null);
+
+    if (rawAttempt) {
+      continueAttempt = {
+        id: rawAttempt.id,
+        language: rawAttempt.language,
+        code: rawAttempt.code,
+        status: rawAttempt.status,
+      };
+    }
+  }
 
   let problemData: ProblemPracticeData;
   let acceptedSolutions: AcceptedSolutionData[] = [];
@@ -106,6 +128,7 @@ export default async function PracticePage({ params }: PageProps) {
       <PracticeEditorView
         problem={problemData}
         acceptedSolutions={acceptedSolutions}
+        continueAttempt={continueAttempt}
       />
     </Suspense>
   );

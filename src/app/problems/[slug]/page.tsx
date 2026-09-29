@@ -5,11 +5,7 @@ import {
   ArrowLeft,
   ExternalLink,
   Play,
-  Clock,
-  Sparkles,
   BookOpen,
-  HelpCircle,
-  FileCode2,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { MOCK_PROBLEMS } from "@/data/mock-problems";
@@ -19,6 +15,10 @@ import {
   ReadOnlySolutionPanel,
   SolutionItem,
 } from "@/components/problems/ReadOnlySolutionPanel";
+import {
+  PracticeHistorySection,
+  PracticeAttemptItem,
+} from "@/components/problems/PracticeHistorySection";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +26,28 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+function formatDuration(
+  startedAt?: Date | string | null,
+  completedAt?: Date | string | null
+): string {
+  if (!startedAt || !completedAt) return "—";
+  const start = new Date(startedAt).getTime();
+  const end = new Date(completedAt).getTime();
+  const diffSec = Math.max(0, Math.floor((end - start) / 1000));
+  if (diffSec < 60) return `${diffSec}s`;
+  const diffMin = Math.floor(diffSec / 60);
+  const remainingSec = diffSec % 60;
+  if (diffMin < 60) {
+    return remainingSec > 0 ? `${diffMin}m ${remainingSec}s` : `${diffMin} mins`;
+  }
+  const diffHour = Math.floor(diffMin / 60);
+  return `${diffHour}h ${diffMin % 60}m`;
+}
+
 export default async function ProblemDetailPage({ params }: PageProps) {
   const { slug } = await params;
 
-  // 1. Fetch real problem data directly from Neon PostgreSQL
+  // 1. Fetch real problem data and chronological attempts directly from Neon PostgreSQL
   const dbProblem = await prisma.problem
     .findUnique({
       where: { slug },
@@ -40,8 +58,7 @@ export default async function ProblemDetailPage({ params }: PageProps) {
         },
         revisionSchedules: true,
         practiceAttempts: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
+          orderBy: { createdAt: "asc" },
         },
       },
     })
@@ -61,6 +78,7 @@ export default async function ProblemDetailPage({ params }: PageProps) {
   let problemConstraints: string[];
   let problemUrl: string;
   let solutionsList: SolutionItem[] = [];
+  let attemptsList: PracticeAttemptItem[] = [];
 
   if (dbProblem) {
     problemNumber = dbProblem.leetcodeId;
@@ -79,11 +97,31 @@ export default async function ProblemDetailPage({ params }: PageProps) {
     problemConstraints = dbProblem.constraints || [];
     problemUrl = dbProblem.url;
 
+    // Accepted reference solutions
     solutionsList = dbProblem.solutions.map((s) => ({
       id: s.id,
       language: s.language,
       code: s.code,
       isAccepted: s.isAccepted,
+    }));
+
+    // Historical practice attempts (immutable)
+    attemptsList = dbProblem.practiceAttempts.map((att, idx) => ({
+      id: att.id,
+      attemptNumber: idx + 1,
+      createdAt: new Date(att.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+      }),
+      startedAt: att.startedAt ? att.startedAt.toISOString() : null,
+      completedAt: att.completedAt ? att.completedAt.toISOString() : null,
+      language: att.language,
+      code: att.code,
+      status: att.status,
+      duration: formatDuration(att.startedAt, att.completedAt),
     }));
   } else {
     // Fallback to mock problem
@@ -113,7 +151,7 @@ export default async function ProblemDetailPage({ params }: PageProps) {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 pb-16">
+    <div className="space-y-8 animate-in fade-in duration-300 pb-16">
       {/* Top Breadcrumb & Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-slate-200/80">
         <div className="flex items-center gap-3">
@@ -262,6 +300,15 @@ export default async function ProblemDetailPage({ params }: PageProps) {
             leetcodeUrl={problemUrl}
           />
         </div>
+      </div>
+
+      {/* Dedicated Section: Practice History (Visually separated from accepted solution) */}
+      <div className="pt-2">
+        <PracticeHistorySection
+          attempts={attemptsList}
+          problemSlug={slug}
+          problemTitle={problemTitle}
+        />
       </div>
     </div>
   );
