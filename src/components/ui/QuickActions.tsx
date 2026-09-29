@@ -37,7 +37,7 @@ export function QuickActions() {
     {
       title: "Add Problem",
       description: "Record a newly solved LeetCode problem",
-      href: "/problems?action=add",
+      href: "/problems/new",
       icon: PlusCircle,
       gradient: "from-emerald-500 to-teal-600",
       iconBg: "bg-emerald-50 text-emerald-600",

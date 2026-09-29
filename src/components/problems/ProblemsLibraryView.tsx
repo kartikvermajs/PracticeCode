@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { Plus, BookOpen, CheckCircle2, Sparkles, Layers } from "lucide-react";
 import { ProblemsLibraryResult } from "@/lib/db-queries";
 import { ProblemsFilterToolbar } from "./ProblemsFilterToolbar";
@@ -46,13 +47,13 @@ export function ProblemsLibraryView({ data }: ProblemsLibraryViewProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIsAddModalOpen(true)}
+          <Link
+            href="/problems/new"
             className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-xs transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>Add Problem</span>
-          </button>
+          </Link>
         </div>
       </div>
 

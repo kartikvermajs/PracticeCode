@@ -59,7 +59,7 @@ export default async function DashboardPage() {
             </Link>
           ) : (
             <Link
-              href="/problems"
+              href="/problems/new"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all active:scale-95"
             >
               <PlusCircle className="w-4 h-4" />
@@ -155,6 +155,7 @@ export default async function DashboardPage() {
             title="Your revision deck is empty"
             description="You don't have any problems in your library yet. Add your first solved LeetCode problem to start your spaced repetition cycle."
             actionLabel="Add Problem"
+            actionHref="/problems/new"
           />
         ) : (
           <div className="p-8 rounded-2xl bg-white border border-slate-200/80 text-center space-y-3 shadow-2xs">

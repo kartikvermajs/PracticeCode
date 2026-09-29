@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getProblemsLibrary } from "@/lib/db-queries";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  createProblem,
+  extractSlugFromLeetCodeUrl,
+  CreateProblemInput,
+} from "@/services/problem.service";
 
 export const dynamic = "force-dynamic";
 
@@ -39,117 +44,73 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {
-      leetcodeId,
-      title,
-      difficulty = "Medium",
-      tags = [],
-      url,
-      description = "",
-      examples = [],
-      constraints = [],
-      solutionCode,
-      solutionLanguage = "typescript",
-    } = body;
+    const user = await getCurrentUser();
 
-    const numId = parseInt(leetcodeId, 10);
-    if (isNaN(numId) || !title) {
+    // Auto-extract slug from url if slug not provided
+    const url = body.url ? String(body.url).trim() : "";
+    let slug = body.slug ? String(body.slug).trim() : "";
+    if (!slug && url) {
+      slug = extractSlugFromLeetCodeUrl(url);
+    }
+
+    const payload: CreateProblemInput = {
+      url,
+      leetcodeId: Number(body.leetcodeId),
+      title: body.title ? String(body.title).trim() : "",
+      slug,
+      difficulty: body.difficulty || "Medium",
+      tags: Array.isArray(body.tags)
+        ? body.tags
+        : typeof body.tags === "string"
+        ? body.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
+        : [],
+      description: body.description ? String(body.description).trim() : "",
+      examples: Array.isArray(body.examples) ? body.examples : [],
+      constraints: Array.isArray(body.constraints)
+        ? body.constraints
+        : typeof body.constraints === "string"
+        ? body.constraints.split("\n").map((c: string) => c.trim()).filter(Boolean)
+        : [],
+      solutionCode: body.solutionCode,
+      solutionLanguage: body.solutionLanguage || "typescript",
+      userId: user?.id || null,
+    };
+
+    const problem = await createProblem(payload);
+
+    return NextResponse.json(
+      {
+        success: true,
+        problem,
+        message: `Problem #${problem.leetcodeId} "${problem.title}" added to your revision library!`,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("POST /api/problems error:", error);
+
+    if (error.status === 409) {
       return NextResponse.json(
-        { error: "LeetCode ID number and Problem Title are required." },
+        {
+          error: error.message || "A duplicate problem was found.",
+          field: error.field,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (error.status === 400 && error.errors) {
+      return NextResponse.json(
+        {
+          error: "Validation failed. Please correct the highlighted errors.",
+          errors: error.errors,
+        },
         { status: 400 }
       );
     }
 
-    // Slug generator
-    const slug = title
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, "")
-      .replace(/[\s_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-
-    const problemUrl = url || `https://leetcode.com/problems/${slug}/`;
-
-    // Process tags
-    const cleanTags = Array.isArray(tags)
-      ? tags.map((t: string) => t.trim()).filter(Boolean)
-      : typeof tags === "string"
-      ? tags.split(",").map((t: string) => t.trim()).filter(Boolean)
-      : ["Algorithms"];
-
-    // 1. Upsert Problem in Neon PostgreSQL
-    const problem = await prisma.problem.upsert({
-      where: { leetcodeId: numId },
-      update: {
-        title,
-        slug,
-        difficulty,
-        url: problemUrl,
-        description: description || `LeetCode #${numId} - ${title}`,
-        tags: cleanTags.length > 0 ? cleanTags : ["Algorithms"],
-        constraints: Array.isArray(constraints) ? constraints : [],
-        examples: Array.isArray(examples) ? examples : [],
-      },
-      create: {
-        leetcodeId: numId,
-        title,
-        slug,
-        difficulty,
-        url: problemUrl,
-        description: description || `LeetCode #${numId} - ${title}`,
-        tags: cleanTags.length > 0 ? cleanTags : ["Algorithms"],
-        constraints: Array.isArray(constraints) ? constraints : [],
-        examples: Array.isArray(examples) ? examples : [],
-      },
-    });
-
-    // 2. User & Revision Schedule
-    const user = await getCurrentUser();
-    const userId = user?.id || null;
-
-    if (userId) {
-      await prisma.revisionSchedule.upsert({
-        where: {
-          problemId_userId: {
-            problemId: problem.id,
-            userId,
-          },
-        },
-        update: {
-          status: "Due",
-          nextReviewAt: new Date(),
-        },
-        create: {
-          problemId: problem.id,
-          userId,
-          status: "Due",
-          nextReviewAt: new Date(),
-          interval: 1,
-        },
-      });
-    }
-
-    // 3. Optional Solution
-    if (solutionCode && solutionCode.trim()) {
-      await prisma.solution.create({
-        data: {
-          problemId: problem.id,
-          language: solutionLanguage,
-          code: solutionCode.trim(),
-          isAccepted: true,
-        },
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      problem,
-      message: `Problem #${problem.leetcodeId} "${problem.title}" added to your revision library!`,
-    });
-  } catch (error) {
-    console.error("POST /api/problems error:", error);
     return NextResponse.json(
-      { error: "Failed to create problem in database" },
+      { error: error.message || "Failed to create problem in database." },
       { status: 500 }
     );
   }
