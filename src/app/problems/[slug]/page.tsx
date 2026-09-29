@@ -301,6 +301,8 @@ export default async function ProblemDetailPage({ params }: PageProps) {
             solutions={solutionsList}
             slug={slug}
             leetcodeUrl={problemUrl}
+            problemId={dbProblem?.id}
+            problemTitle={problemTitle}
           />
         </div>
       </div>
