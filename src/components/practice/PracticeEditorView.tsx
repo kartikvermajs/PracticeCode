@@ -28,6 +28,7 @@ import {
   SupportedLanguage,
   getStarterTemplate,
 } from "@/lib/starter-templates";
+import { HowDidThisFeelModal } from "./HowDidThisFeelModal";
 
 // Dynamically load Monaco Editor with SSR disabled for Next.js App Router
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -110,6 +111,7 @@ export function PracticeEditorView({
   const [revealSolutionLang, setRevealSolutionLang] = useState<string>("cpp");
   const [copiedSolution, setCopiedSolution] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
+  const [showFeelModal, setShowFeelModal] = useState(false);
   const isInitialMount = useRef(true);
 
   // Storage key generator for persistent local drafts
@@ -213,6 +215,8 @@ export function PracticeEditorView({
           data.message || `Practice attempt saved! Active streak: ${data.streak} days.`
         );
         setTimeout(() => setNotification(null), 3500);
+        // Show "How did this feel?" recall rating prompt
+        setShowFeelModal(true);
       } else {
         setNotification(data.error || "Failed to save attempt.");
         setTimeout(() => setNotification(null), 3000);
@@ -705,6 +709,17 @@ export function PracticeEditorView({
           </div>
         </div>
       )}
+
+      {/* ======================================================== */}
+      {/* 6. "HOW DID THIS FEEL?" RECALL RATING MODAL              */}
+      {/* ======================================================== */}
+      <HowDidThisFeelModal
+        isOpen={showFeelModal}
+        onClose={() => setShowFeelModal(false)}
+        problemId={problem.id}
+        problemSlug={problem.slug}
+        problemTitle={problem.title}
+      />
     </div>
   );
 }

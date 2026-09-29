@@ -43,7 +43,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-3">
           {stats.dueTodayCount > 0 ? (
             <Link
-              href={`/practice/${revisionProblems[0]?.slug || "single-number"}`}
+              href="/revision"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all active:scale-95"
             >
               <Sparkles className="w-4 h-4 text-blue-200" />

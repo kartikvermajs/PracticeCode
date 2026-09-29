@@ -141,7 +141,6 @@ export async function getDashboardData(): Promise<DashboardData> {
           problem: true,
         },
         orderBy: { nextReviewAt: "asc" },
-        take: 8,
       }),
 
       prisma.practiceAttempt.findMany({

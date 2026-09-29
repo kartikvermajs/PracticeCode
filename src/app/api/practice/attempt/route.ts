@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { calculateNextReview, type RecallRating } from "@/services/revision.service";
 
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
-    const { problemId, language, code, status = "Passed" } = await req.json();
+    const { problemId, language, code, status = "Passed", rating } = await req.json();
 
     if (!problemId || !code) {
       return NextResponse.json(
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
 
     const realProblemId = foundProblem ? foundProblem.id : problemId;
 
-    // 1. Create PracticeAttempt record
+    // 1. Create PracticeAttempt record (never overwrites old attempts)
     const now = new Date();
     const attempt = await prisma.practiceAttempt.create({
       data: {
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // 2. Update RevisionSchedule with Spaced Repetition multiplier
+    // 2. Update RevisionSchedule using reusable revision service
     const existingSchedule = await prisma.revisionSchedule.findFirst({
       where: {
         problemId: realProblemId,
@@ -45,9 +46,13 @@ export async function POST(req: Request) {
       },
     });
 
-    const prevInterval = existingSchedule?.interval || 1;
-    const nextInterval = status === "Passed" ? Math.max(1, Math.round(prevInterval * 2.0)) : 1;
-    const nextReviewAt = new Date(now.getTime() + nextInterval * 24 * 60 * 60 * 1000);
+    const chosenRating = (rating as RecallRating) || "Good";
+    const calc = calculateNextReview({
+      rating: chosenRating,
+      previousInterval: existingSchedule?.interval,
+      previousRating: existingSchedule?.difficultyRating,
+      now,
+    });
 
     await prisma.revisionSchedule.upsert({
       where: {
@@ -57,18 +62,20 @@ export async function POST(req: Request) {
         },
       },
       update: {
-        lastPracticedAt: now,
-        nextReviewAt,
-        interval: nextInterval,
-        status: status === "Passed" ? "Mastered" : "Due",
+        lastPracticedAt: calc.lastPracticedAt,
+        nextReviewAt: calc.nextReviewAt,
+        interval: calc.interval,
+        difficultyRating: calc.difficultyRating,
+        status: calc.status,
       },
       create: {
         problemId: realProblemId,
         userId: user?.id || "user_kartik_dev",
-        lastPracticedAt: now,
-        nextReviewAt,
-        interval: nextInterval,
-        status: status === "Passed" ? "Mastered" : "Due",
+        lastPracticedAt: calc.lastPracticedAt,
+        nextReviewAt: calc.nextReviewAt,
+        interval: calc.interval,
+        difficultyRating: calc.difficultyRating,
+        status: calc.status,
       },
     });
 
@@ -106,7 +113,7 @@ export async function POST(req: Request) {
       success: true,
       attemptId: attempt.id,
       streak,
-      nextReviewDays: nextInterval,
+      nextReviewDays: calc.interval,
       message: `Practice attempt saved! Your current streak is ${streak} day${streak === 1 ? "" : "s"}.`,
     });
   } catch (error) {

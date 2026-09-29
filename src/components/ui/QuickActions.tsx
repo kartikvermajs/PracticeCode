@@ -6,8 +6,8 @@ export function QuickActions() {
   const actions = [
     {
       title: "Start Revision",
-      description: "Tackle your 4 pending problems due today",
-      href: "/practice/single-number",
+      description: "Tackle your pending problems due today",
+      href: "/revision",
       icon: PlayCircle,
       gradient: "from-blue-600 to-indigo-600",
       iconBg: "bg-blue-50 text-blue-600",
