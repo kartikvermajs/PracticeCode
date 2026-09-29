@@ -1,4 +1,4 @@
-// Prisma configuration for PostgreSQL / Neon
+// Prisma schema for CodeRev - LeetCode Revision & Practice Platform
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,11 +8,95 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Initial placeholder schema - will be expanded in future steps
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  image             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  practiceAttempts  PracticeAttempt[]
+  revisionSchedules RevisionSchedule[]
+
+  @@index([email])
+}
+
+model Problem {
+  id                String             @id @default(cuid())
+  leetcodeId        Int                @unique
+  title             String
+  slug              String             @unique
+  difficulty        String             // "Easy" | "Medium" | "Hard"
+  url               String
+  description       String             @db.Text
+  examples          Json               // Array of { input, output, explanation? }
+  constraints       String[]           // Array of constraint strings
+  tags              String[]           // Topic tags, e.g. ["Array", "Bit Manipulation"]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  solutions         Solution[]
+  practiceAttempts  PracticeAttempt[]
+  revisionSchedules RevisionSchedule[]
+
+  @@index([slug])
+  @@index([leetcodeId])
+  @@index([difficulty])
+}
+
+model Solution {
+  id          String   @id @default(cuid())
+  problemId   String
+  language    String   // e.g. "typescript", "python", "cpp"
+  code        String   @db.Text
+  isAccepted  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@index([problemId])
+  @@index([problemId, language])
+}
+
+model PracticeAttempt {
+  id          String    @id @default(cuid())
+  problemId   String
+  userId      String?
+  language    String
+  code        String    @db.Text
+  status      String    // "Passed" | "Partial" | "Needs Review"
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  problem     Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([problemId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model RevisionSchedule {
+  id               String    @id @default(cuid())
+  problemId        String
+  userId           String?
+  lastPracticedAt  DateTime?
+  nextReviewAt     DateTime
+  interval         Int       @default(1) // in days
+  difficultyRating Float?    // Ease factor or recall confidence
+  status           String    @default("Due") // "Due" | "Mastered" | "Reviewing"
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  problem          Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, userId])
+  @@index([problemId])
+  @@index([userId])
+  @@index([nextReviewAt])
+  @@index([status])
 }
