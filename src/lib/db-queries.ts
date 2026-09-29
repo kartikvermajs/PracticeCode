@@ -111,134 +111,155 @@ export async function getDashboardData(): Promise<DashboardData> {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  // 1. Parallel database queries for performance
-  const [
-    allProblems,
-    dueSchedules,
-    recentAttempts,
-    passedAttempts,
-    acceptedSolutions,
-    allAttemptsForStreak,
-  ] = await Promise.all([
-    prisma.problem.findMany({
-      select: {
-        id: true,
-        leetcodeId: true,
-        title: true,
-        slug: true,
-        difficulty: true,
-        tags: true,
+  try {
+    // 1. Parallel database queries for performance
+    const [
+      allProblems,
+      dueSchedules,
+      recentAttempts,
+      passedAttempts,
+      acceptedSolutions,
+      allAttemptsForStreak,
+    ] = await Promise.all([
+      prisma.problem.findMany({
+        select: {
+          id: true,
+          leetcodeId: true,
+          title: true,
+          slug: true,
+          difficulty: true,
+          tags: true,
+        },
+        orderBy: { leetcodeId: "asc" },
+      }),
+
+      prisma.revisionSchedule.findMany({
+        where: {
+          nextReviewAt: { lte: endOfToday },
+        },
+        include: {
+          problem: true,
+        },
+        orderBy: { nextReviewAt: "asc" },
+        take: 8,
+      }),
+
+      prisma.practiceAttempt.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: {
+          problem: true,
+        },
+      }),
+
+      prisma.practiceAttempt.findMany({
+        where: { status: "Passed" },
+        select: { problemId: true },
+        distinct: ["problemId"],
+      }),
+
+      prisma.solution.findMany({
+        where: { isAccepted: true },
+        select: { problemId: true },
+        distinct: ["problemId"],
+      }),
+
+      prisma.practiceAttempt.findMany({
+        select: { createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 100,
+      }),
+    ]);
+
+    // 2. Compute Solved Problem Set
+    const solvedProblemIdSet = new Set<string>();
+    passedAttempts.forEach((a) => solvedProblemIdSet.add(a.problemId));
+    acceptedSolutions.forEach((s) => solvedProblemIdSet.add(s.problemId));
+
+    // 3. Difficulty Breakdown
+    let easyTotal = 0;
+    let easySolved = 0;
+    let mediumTotal = 0;
+    let mediumSolved = 0;
+    let hardTotal = 0;
+    let hardSolved = 0;
+
+    allProblems.forEach((p) => {
+      const isSolved = solvedProblemIdSet.has(p.id);
+      const diff = p.difficulty as "Easy" | "Medium" | "Hard";
+      if (diff === "Easy") {
+        easyTotal++;
+        if (isSolved) easySolved++;
+      } else if (diff === "Medium") {
+        mediumTotal++;
+        if (isSolved) mediumSolved++;
+      } else if (diff === "Hard") {
+        hardTotal++;
+        if (isSolved) hardSolved++;
+      }
+    });
+
+    // 4. Calculate Streak
+    const practiceStreakDays = calculateStreak(allAttemptsForStreak);
+
+    // 5. Map Revision Items
+    const revisionProblems: DashboardRevisionItem[] = dueSchedules.map((schedule) => ({
+      id: schedule.problem.id,
+      number: schedule.problem.leetcodeId,
+      title: schedule.problem.title,
+      slug: schedule.problem.slug,
+      difficulty: schedule.problem.difficulty as "Easy" | "Medium" | "Hard",
+      topics: schedule.problem.tags,
+      lastPracticed: formatRelativeTime(schedule.lastPracticedAt),
+      nextReview: "Today",
+    }));
+
+    // 6. Map Recent Practice Items
+    const recentPractices: DashboardRecentItem[] = recentAttempts.map((attempt) => ({
+      id: attempt.id,
+      problemNumber: attempt.problem.leetcodeId,
+      problemTitle: attempt.problem.title,
+      slug: attempt.problem.slug,
+      difficulty: attempt.problem.difficulty as "Easy" | "Medium" | "Hard",
+      lastPracticed: formatRelativeTime(attempt.createdAt),
+      result: (attempt.status as "Passed" | "Partial" | "Needs Review") || "Passed",
+    }));
+
+    return {
+      stats: {
+        totalProblems: allProblems.length,
+        totalSolved: solvedProblemIdSet.size,
+        solvedCount: solvedProblemIdSet.size,
+        dueTodayCount: dueSchedules.length,
+        practiceStreakDays,
+        easyTotal,
+        easySolved,
+        mediumTotal,
+        mediumSolved,
+        hardTotal,
+        hardSolved,
       },
-      orderBy: { leetcodeId: "asc" },
-    }),
-
-    prisma.revisionSchedule.findMany({
-      where: {
-        nextReviewAt: { lte: endOfToday },
+      revisionProblems,
+      recentPractices,
+    };
+  } catch (error) {
+    console.error("Database query fallback in getDashboardData:", error);
+    return {
+      stats: {
+        totalProblems: 0,
+        totalSolved: 0,
+        solvedCount: 0,
+        dueTodayCount: 0,
+        practiceStreakDays: 0,
+        easyTotal: 0,
+        easySolved: 0,
+        mediumTotal: 0,
+        mediumSolved: 0,
+        hardTotal: 0,
+        hardSolved: 0,
       },
-      include: {
-        problem: true,
-      },
-      orderBy: { nextReviewAt: "asc" },
-      take: 8,
-    }),
-
-    prisma.practiceAttempt.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      include: {
-        problem: true,
-      },
-    }),
-
-    prisma.practiceAttempt.findMany({
-      where: { status: "Passed" },
-      select: { problemId: true },
-      distinct: ["problemId"],
-    }),
-
-    prisma.solution.findMany({
-      where: { isAccepted: true },
-      select: { problemId: true },
-      distinct: ["problemId"],
-    }),
-
-    prisma.practiceAttempt.findMany({
-      select: { createdAt: true },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }),
-  ]);
-
-  // 2. Compute Solved Problem Set
-  const solvedProblemIdSet = new Set<string>();
-  passedAttempts.forEach((a) => solvedProblemIdSet.add(a.problemId));
-  acceptedSolutions.forEach((s) => solvedProblemIdSet.add(s.problemId));
-
-  // 3. Difficulty Breakdown
-  let easyTotal = 0;
-  let easySolved = 0;
-  let mediumTotal = 0;
-  let mediumSolved = 0;
-  let hardTotal = 0;
-  let hardSolved = 0;
-
-  allProblems.forEach((p) => {
-    const isSolved = solvedProblemIdSet.has(p.id);
-    const diff = p.difficulty as "Easy" | "Medium" | "Hard";
-    if (diff === "Easy") {
-      easyTotal++;
-      if (isSolved) easySolved++;
-    } else if (diff === "Medium") {
-      mediumTotal++;
-      if (isSolved) mediumSolved++;
-    } else if (diff === "Hard") {
-      hardTotal++;
-      if (isSolved) hardSolved++;
-    }
-  });
-
-  // 4. Calculate Streak
-  const practiceStreakDays = calculateStreak(allAttemptsForStreak);
-
-  // 5. Map Revision Items
-  const revisionProblems: DashboardRevisionItem[] = dueSchedules.map((schedule) => ({
-    id: schedule.problem.id,
-    number: schedule.problem.leetcodeId,
-    title: schedule.problem.title,
-    slug: schedule.problem.slug,
-    difficulty: schedule.problem.difficulty as "Easy" | "Medium" | "Hard",
-    topics: schedule.problem.tags,
-    lastPracticed: formatRelativeTime(schedule.lastPracticedAt),
-    nextReview: "Today",
-  }));
-
-  // 6. Map Recent Practice Items
-  const recentPractices: DashboardRecentItem[] = recentAttempts.map((attempt) => ({
-    id: attempt.id,
-    problemNumber: attempt.problem.leetcodeId,
-    problemTitle: attempt.problem.title,
-    slug: attempt.problem.slug,
-    difficulty: attempt.problem.difficulty as "Easy" | "Medium" | "Hard",
-    lastPracticed: formatRelativeTime(attempt.createdAt),
-    result: (attempt.status as "Passed" | "Partial" | "Needs Review") || "Passed",
-  }));
-
-  return {
-    stats: {
-      totalProblems: allProblems.length,
-      totalSolved: solvedProblemIdSet.size,
-      solvedCount: solvedProblemIdSet.size,
-      dueTodayCount: dueSchedules.length,
-      practiceStreakDays,
-      easyTotal,
-      easySolved,
-      mediumTotal,
-      mediumSolved,
-      hardTotal,
-      hardSolved,
-    },
-    revisionProblems,
-    recentPractices,
-  };
+      revisionProblems: [],
+      recentPractices: [],
+    };
+  }
 }

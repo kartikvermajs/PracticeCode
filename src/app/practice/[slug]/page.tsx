@@ -21,6 +21,7 @@ import {
 import { MOCK_PROBLEMS } from "@/data/mock-problems";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { TopicBadge } from "@/components/ui/TopicBadge";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -41,6 +42,9 @@ export default function PracticePage({ params }: PageProps) {
   const [runStatus, setRunStatus] = useState<"idle" | "running" | "success">("idle");
   const [savedNotification, setSavedNotification] = useState<boolean>(false);
 
+  const { incrementStreak } = useAuth();
+  const [streakNotification, setStreakNotification] = useState<string | null>(null);
+
   // When changing language, switch to that language's starter code
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
@@ -53,9 +57,31 @@ export default function PracticePage({ params }: PageProps) {
     }
   };
 
-  const handleSaveAttempt = () => {
-    setSavedNotification(true);
-    setTimeout(() => setSavedNotification(false), 2500);
+  const handleSaveAttempt = async () => {
+    try {
+      const res = await fetch("/api/practice/attempt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          problemId: problem.id,
+          language,
+          code: userCode,
+          status: "Passed",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (typeof data.streak === "number") {
+          incrementStreak(data.streak);
+        }
+        setStreakNotification(data.message || `Streak active!`);
+        setSavedNotification(true);
+        setTimeout(() => setSavedNotification(false), 3500);
+      }
+    } catch {
+      setSavedNotification(true);
+      setTimeout(() => setSavedNotification(false), 2500);
+    }
   };
 
   const handleRunMock = () => {
@@ -94,7 +120,7 @@ export default function PracticePage({ params }: PageProps) {
           {savedNotification && (
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 animate-in fade-in">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              Attempt Saved!
+              <span>{streakNotification || "Attempt Saved!"}</span>
             </span>
           )}
 

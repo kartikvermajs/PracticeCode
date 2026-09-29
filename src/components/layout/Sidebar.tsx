@@ -16,6 +16,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 interface SidebarProps {
   onCloseMobile?: () => void;
@@ -23,6 +24,7 @@ interface SidebarProps {
 
 export function Sidebar({ onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const primaryNav = [
     {
@@ -57,6 +59,11 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
       name: "Progress",
       href: "/progress",
       icon: TrendingUp,
+    },
+    {
+      name: "Profile",
+      href: "/profile",
+      icon: User,
     },
     {
       name: "Settings",
@@ -196,22 +203,35 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
 
       {/* Bottom User Profile Card */}
       <div className="p-3 border-t border-slate-100">
-        <div className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 transition-colors">
+        <Link
+          href="/profile"
+          onClick={onCloseMobile}
+          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100/80 transition-colors group cursor-pointer"
+        >
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-2xs">
-              K
+            <div className="w-9 h-9 rounded-full overflow-hidden border border-slate-200 bg-gradient-to-tr from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs shrink-0">
+              {user?.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.image}
+                  alt={user.name || "Avatar"}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{user?.name ? user.name.charAt(0).toUpperCase() : "K"}</span>
+              )}
             </div>
-            <div>
-              <p className="text-xs font-bold text-slate-900 leading-tight">
-                Kartik
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-900 leading-tight truncate group-hover:text-blue-600 transition-colors">
+                {user?.name || "Kartik"}
               </p>
-              <p className="text-[11px] text-slate-500 font-medium">
-                DSA Revision
+              <p className="text-[11px] text-slate-500 font-medium truncate max-w-[120px]">
+                {user?.bio || "DSA Revision"}
               </p>
             </div>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-400" />
-        </div>
+          <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-slate-600 transition-colors shrink-0" />
+        </Link>
       </div>
     </aside>
   );

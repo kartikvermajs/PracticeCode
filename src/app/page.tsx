@@ -22,6 +22,8 @@ import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 // Server Component with real Prisma Neon PostgreSQL queries
+export const dynamic = "force-dynamic";
+
 export default async function DashboardPage() {
   const { stats, revisionProblems, recentPractices } = await getDashboardData();
 

@@ -12,7 +12,11 @@ model User {
   id                String             @id @default(cuid())
   name              String?
   email             String             @unique
+  password          String?
   image             String?
+  bio               String?            @default("DSA Revision & LeetCode Practice")
+  resetToken        String?
+  resetTokenExpiry  DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 

@@ -1,17 +1,21 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Search,
   Menu,
   Sparkles,
-  Command,
-  ExternalLink,
   Flame,
+  User,
+  LogOut,
+  Settings,
+  ChevronDown,
 } from "lucide-react";
 import { QuickSearchModal } from "../ui/QuickSearchModal";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 interface TopbarProps {
   onOpenMobileSidebar: () => void;
@@ -19,8 +23,10 @@ interface TopbarProps {
 
 export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
   const pathname = usePathname();
+  const { user, streak, logout } = useAuth();
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const getPageTitle = () => {
     if (pathname === "/") return "Dashboard";
@@ -30,7 +36,10 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
     if (pathname === "/due") return "Due for Revision";
     if (pathname === "/history") return "Practice History";
     if (pathname === "/progress") return "Progress & Analytics";
+    if (pathname === "/profile") return "Profile & Account";
     if (pathname === "/settings") return "Settings";
+    if (pathname === "/login") return "Sign In";
+    if (pathname === "/forgot-password") return "Reset Password";
     return "CodeRev";
   };
 
@@ -54,12 +63,12 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
           </div>
         </div>
 
-        {/* Right: Search, Streak, Notifications, Avatar */}
+        {/* Right: Search, Dynamic Streak, Notifications, Avatar */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Quick Streak indicator */}
+          {/* Real Streak indicator */}
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-50 border border-orange-200/60 text-orange-700 text-xs font-semibold">
             <Flame className="w-4 h-4 text-orange-500 fill-orange-500" />
-            <span>14 Day Streak</span>
+            <span>{streak} Day{streak === 1 ? "" : "s"} Streak</span>
           </div>
 
           {/* Quick Search Button */}
@@ -74,7 +83,7 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
             </kbd>
           </button>
 
-          {/* Notifications Dropdown / Trigger */}
+          {/* Notifications Dropdown */}
           <div className="relative">
             <button
               onClick={() => setShowNotifications(!showNotifications)}
@@ -90,7 +99,7 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <span className="font-bold text-slate-900">Notifications</span>
                   <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                    4 Due
+                    Active
                   </span>
                 </div>
                 <div className="py-3 space-y-2.5">
@@ -98,10 +107,10 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
                     <Sparkles className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
                     <div>
                       <p className="font-semibold text-slate-800">
-                        4 problems due today
+                        Revision queue active
                       </p>
                       <p className="text-slate-500 text-[11px] mt-0.5">
-                        Single Number, Two Sum, Binary Search, Valid Parentheses.
+                        Single Number (#136) is scheduled for review today.
                       </p>
                     </div>
                   </div>
@@ -110,11 +119,72 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
             )}
           </div>
 
-          {/* Profile Avatar */}
-          <div className="flex items-center pl-1 sm:pl-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-xs shadow-xs ring-2 ring-blue-100">
-              K
-            </div>
+          {/* Profile Avatar & Dropdown Menu */}
+          <div className="relative pl-1 sm:pl-2">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="flex items-center gap-1.5 p-0.5 rounded-full hover:ring-2 hover:ring-blue-200 transition-all cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                {user?.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.image}
+                    alt={user.name || "User Avatar"}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{user?.name ? user.name.charAt(0).toUpperCase() : "K"}</span>
+                )}
+              </div>
+              <ChevronDown className="w-3 h-3 text-slate-400 hidden sm:block" />
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-100">
+                <div className="p-3 border-b border-slate-100">
+                  <p className="font-bold text-slate-900 truncate">
+                    {user?.name || "Kartik"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    {user?.email || "kartik@coderev.dev"}
+                  </p>
+                </div>
+
+                <div className="py-1 space-y-0.5">
+                  <Link
+                    href="/profile"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors font-medium"
+                  >
+                    <User className="w-4 h-4 text-slate-400" />
+                    <span>My Profile</span>
+                  </Link>
+
+                  <Link
+                    href="/settings"
+                    onClick={() => setShowProfileMenu(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-700 hover:bg-slate-50 transition-colors font-medium"
+                  >
+                    <Settings className="w-4 h-4 text-slate-400" />
+                    <span>Settings</span>
+                  </Link>
+
+                  <div className="pt-1 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 transition-colors font-semibold"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-500" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </header>

@@ -1,9 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { Settings, Sliders, Bell, User, Database, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { Settings, Sliders, Bell, User, Database, CheckCircle2, ArrowRight } from "lucide-react";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [dailyGoal, setDailyGoal] = useState("4");
   const [intervalMultiplier, setIntervalMultiplier] = useState("2.0");
   const [saved, setSaved] = useState(false);
@@ -82,11 +85,20 @@ export default function SettingsPage() {
 
         {/* Profile Card */}
         <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
-            <User className="w-4 h-4 text-blue-600" />
-            <h3 className="text-base font-bold text-slate-900">
-              User Profile
-            </h3>
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-blue-600" />
+              <h3 className="text-base font-bold text-slate-900">
+                User Profile & Credentials
+              </h3>
+            </div>
+            <Link
+              href="/profile"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              <span>Edit Profile & Avatar</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -96,19 +108,21 @@ export default function SettingsPage() {
               </label>
               <input
                 type="text"
-                defaultValue="Kartik"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden"
+                value={user?.name || "Kartik"}
+                readOnly
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-semibold cursor-default"
               />
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Focus Area
+                Account Email
               </label>
               <input
                 type="text"
-                defaultValue="DSA Revision & LeetCode 75"
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-hidden"
+                value={user?.email || "kartik@coderev.dev"}
+                readOnly
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 cursor-default"
               />
             </div>
           </div>
