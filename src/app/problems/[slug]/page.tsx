@@ -84,31 +84,48 @@ export default async function ProblemDetailPage({ params }: PageProps) {
     problemUrl = dbProblem.url;
 
     // Accepted reference solutions
-    solutionsList = dbProblem.solutions.map((s) => ({
-      id: s.id,
-      language: s.language,
-      code: s.code,
-      isAccepted: s.isAccepted,
-    }));
+    solutionsList = (dbProblem.solutions || []).map(
+      (s: { id: string; language: string; code: string; isAccepted: boolean }) => ({
+        id: s.id,
+        language: s.language,
+        code: s.code,
+        isAccepted: s.isAccepted,
+      })
+    );
 
     // Historical practice attempts (immutable)
-    attemptsList = dbProblem.practiceAttempts.map((att, idx) => ({
-      id: att.id,
-      attemptNumber: idx + 1,
-      createdAt: new Date(att.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "numeric",
-      }),
-      startedAt: att.startedAt ? att.startedAt.toISOString() : null,
-      completedAt: att.completedAt ? att.completedAt.toISOString() : null,
-      language: att.language,
-      code: att.code,
-      status: att.status,
-      duration: formatDuration(att.startedAt, att.completedAt),
-    }));
+    attemptsList = (dbProblem.practiceAttempts || []).map(
+      (
+        att: {
+          id: string;
+          createdAt: Date | string;
+          startedAt?: Date | string | null;
+          completedAt?: Date | string | null;
+          language: string;
+          code: string;
+          status: string;
+        },
+        idx: number
+      ) => ({
+        id: att.id,
+        attemptNumber: idx + 1,
+        createdAt: new Date(att.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+          hour: "numeric",
+          minute: "numeric",
+        }),
+        startedAt: att.startedAt ? new Date(att.startedAt).toISOString() : null,
+        completedAt: att.completedAt
+          ? new Date(att.completedAt).toISOString()
+          : null,
+        language: att.language,
+        code: att.code,
+        status: att.status,
+        duration: formatDuration(att.startedAt, att.completedAt),
+      })
+    );
   } else {
     // Fallback to mock problem
     const mock = MOCK_PROBLEMS.find((p) => p.slug === slug);
