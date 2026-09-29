@@ -7,7 +7,7 @@ import {
   Play,
   BookOpen,
 } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { getProblemBySlug } from "@/lib/db-queries";
 import { MOCK_PROBLEMS } from "@/data/mock-problems";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { TopicBadge } from "@/components/ui/TopicBadge";
@@ -48,21 +48,7 @@ export default async function ProblemDetailPage({ params }: PageProps) {
   const { slug } = await params;
 
   // 1. Fetch real problem data and chronological attempts directly from Neon PostgreSQL
-  const dbProblem = await prisma.problem
-    .findUnique({
-      where: { slug },
-      include: {
-        solutions: {
-          where: { isAccepted: true },
-          orderBy: { createdAt: "asc" },
-        },
-        revisionSchedules: true,
-        practiceAttempts: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    })
-    .catch(() => null);
+  const dbProblem = await getProblemBySlug(slug);
 
   // 2. Prepare problem structure (with fallback to mock if DB doesn't have it yet)
   let problemNumber: number;

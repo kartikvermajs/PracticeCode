@@ -501,3 +501,28 @@ export async function getProblemsLibrary(
   }
 }
 
+/**
+ * Fetches a single problem by its slug from Neon PostgreSQL,
+ * including its accepted solutions, revision schedules, and practice attempts.
+ */
+export async function getProblemBySlug(slug: string) {
+  try {
+    return await prisma.problem.findUnique({
+      where: { slug },
+      include: {
+        solutions: {
+          where: { isAccepted: true },
+          orderBy: { createdAt: "asc" },
+        },
+        revisionSchedules: true,
+        practiceAttempts: {
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error in getProblemBySlug:", error);
+    return null;
+  }
+}
+
