@@ -19,10 +19,6 @@ import {
   Check,
   Sparkles,
   CloudCheck,
-  XCircle,
-  AlertCircle,
-  Play,
-  ChevronDown,
 } from "lucide-react";
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { TopicBadge } from "@/components/ui/TopicBadge";
@@ -77,31 +73,6 @@ export interface ContinueAttemptData {
   attemptNumber?: number;
 }
 
-export interface CaseResult {
-  index: number;
-  passed: boolean;
-  input: string;
-  expected: string;
-  output: string;
-  explanation?: string;
-}
-
-export type VerifyStatus =
-  | "Accepted"
-  | "Wrong Answer"
-  | "Compilation Error"
-  | "Runtime Error"
-  | "No Test Cases"
-  | "Error";
-
-export interface VerifyResponse {
-  status: VerifyStatus;
-  message?: string;
-  runtime?: string;
-  results: CaseResult[];
-  compilationError?: string;
-}
-
 interface PracticeEditorViewProps {
   problem: ProblemPracticeData;
   acceptedSolutions: AcceptedSolutionData[];
@@ -133,7 +104,6 @@ export function PracticeEditorView({
 
   // Editor states & notifications
   const [isSaving, setIsSaving] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showRevealModal, setShowRevealModal] = useState(false);
@@ -143,11 +113,6 @@ export function PracticeEditorView({
   const [isDraftRestored, setIsDraftRestored] = useState(false);
   const [showFeelModal, setShowFeelModal] = useState(false);
   const isInitialMount = useRef(true);
-
-  // Test result state
-  const [testResults, setTestResults] = useState<VerifyResponse | null>(null);
-  const [selectedCaseIndex, setSelectedCaseIndex] = useState<number>(0);
-  const [showTestPanel, setShowTestPanel] = useState(false);
 
   // Storage key generator for persistent local drafts
   const getStorageKey = useCallback(
@@ -218,7 +183,7 @@ export function PracticeEditorView({
     setTimeout(() => setNotification(null), 2500);
   };
 
-  // Save Practice Attempt — verifies code first, then saves with real status
+  // Save Practice Attempt (never overwrites previous attempts)
   const handleSaveAttempt = async () => {
     if (!code.trim()) {
       setNotification("Please write some code before saving.");
@@ -226,67 +191,39 @@ export function PracticeEditorView({
       return;
     }
 
-    setIsVerifying(true);
-    setShowTestPanel(true);
-    setTestResults(null);
-    setSelectedCaseIndex(0);
-
+    setIsSaving(true);
     try {
-      // Step 1: Verify code against test cases
-      const verifyRes = await fetch("/api/practice/verify", {
+      const res = await fetch("/api/practice/attempt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           problemId: problem.id,
           language,
           code,
+          status: "Passed",
         }),
       });
 
-      const verifyData = (await verifyRes.json()) as VerifyResponse;
-      setTestResults(verifyData);
-      setIsVerifying(false);
-
-      const isAccepted = verifyData.status === "Accepted";
-      const hasNoCases = verifyData.status === "No Test Cases";
-
-      // Step 2: Save the attempt with verified status
-      setIsSaving(true);
-      const attemptStatus = isAccepted || hasNoCases ? "Passed" : "Needs Review";
-
-      const saveRes = await fetch("/api/practice/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          problemId: problem.id,
-          language,
-          code,
-          status: attemptStatus,
-        }),
-      });
-
-      const saveData = await saveRes.json();
+      const data = await res.json();
       setIsSaving(false);
 
-      if (saveData.success) {
-        if (typeof saveData.streak === "number") {
-          incrementStreak(saveData.streak);
+      if (data.success) {
+        if (typeof data.streak === "number") {
+          incrementStreak(data.streak);
         }
-        if (isAccepted) {
-          // Show feel modal only on Accepted
-          setShowFeelModal(true);
-        } else if (hasNoCases) {
-          setNotification("Attempt saved! No test cases to verify against.");
-          setTimeout(() => setNotification(null), 3500);
-        }
+        setNotification(
+          data.message || `Practice attempt saved! Active streak: ${data.streak} days.`
+        );
+        setTimeout(() => setNotification(null), 3500);
+        // Show "How did this feel?" recall rating prompt
+        setShowFeelModal(true);
       } else {
-        setNotification(saveData.error || "Failed to save attempt.");
+        setNotification(data.error || "Failed to save attempt.");
         setTimeout(() => setNotification(null), 3000);
       }
     } catch {
-      setIsVerifying(false);
       setIsSaving(false);
-      setNotification("Network error: Could not verify or save attempt.");
+      setNotification("Network error: Could not save attempt.");
       setTimeout(() => setNotification(null), 3000);
     }
   };
@@ -502,26 +439,12 @@ export function PracticeEditorView({
               <button
                 type="button"
                 onClick={handleSaveAttempt}
-                disabled={isSaving || isVerifying}
+                disabled={isSaving}
                 className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all active:scale-95 disabled:opacity-50"
-                title="Verify and save this practice attempt"
+                title="Save this practice attempt to your revision history"
               >
-                {isVerifying ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Running Tests...</span>
-                  </>
-                ) : isSaving ? (
-                  <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5" />
-                    <span>Save Attempt</span>
-                  </>
-                )}
+                <Save className="w-3.5 h-3.5" />
+                <span>{isSaving ? "Saving..." : "Save Attempt"}</span>
               </button>
             </div>
           </div>
@@ -560,144 +483,6 @@ export function PracticeEditorView({
             />
           </div>
 
-          {/* ======================================================== */}
-          {/* TEST RESULT PANEL (appears after Save Attempt is clicked) */}
-          {/* ======================================================== */}
-          {showTestPanel && (
-            <div className="border-t border-slate-200/80 shrink-0 flex flex-col bg-white animate-in slide-in-from-bottom-2 duration-200">
-              {/* Panel Header */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50/90 border-b border-slate-200/80">
-                <div className="flex items-center gap-2">
-                  {isVerifying ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                      <span className="text-xs font-semibold text-slate-700">Running test cases...</span>
-                    </>
-                  ) : testResults ? (
-                    <>
-                      {testResults.status === "Accepted" ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : testResults.status === "Compilation Error" ? (
-                        <AlertCircle className="w-4 h-4 text-orange-500" />
-                      ) : testResults.status === "Runtime Error" ? (
-                        <AlertCircle className="w-4 h-4 text-rose-500" />
-                      ) : testResults.status === "No Test Cases" ? (
-                        <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-rose-500" />
-                      )}
-                      <span
-                        className={`text-xs font-bold ${
-                          testResults.status === "Accepted"
-                            ? "text-emerald-700"
-                            : testResults.status === "Compilation Error" || testResults.status === "Runtime Error"
-                            ? "text-orange-700"
-                            : "text-rose-700"
-                        }`}
-                      >
-                        {testResults.status === "Accepted" ? "✓ Accepted" : `✗ ${testResults.status}`}
-                      </span>
-                      {testResults.runtime && (
-                        <span className="text-[11px] text-slate-400 font-mono">
-                          {testResults.runtime}
-                        </span>
-                      )}
-                    </>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowTestPanel(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                  title="Close test results"
-                >
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Panel Body */}
-              {!isVerifying && testResults && (
-                <div className="flex min-h-0 max-h-52 overflow-hidden">
-                  {/* Compilation / Runtime error full message */}
-                  {(testResults.status === "Compilation Error" || testResults.status === "Runtime Error" || testResults.status === "Error") ? (
-                    <div className="flex-1 p-4 overflow-auto">
-                      <p className="text-xs font-semibold text-orange-700 mb-1.5">
-                        {testResults.status === "Compilation Error" ? "Compilation Error:" : testResults.status === "Runtime Error" ? "Runtime Error:" : "Error:"}
-                      </p>
-                      <pre className="font-mono text-[11px] text-rose-800 bg-rose-50 border border-rose-200 rounded-lg p-3 overflow-auto whitespace-pre-wrap">
-                        {testResults.compilationError || testResults.message || "Unknown error"}
-                      </pre>
-                    </div>
-                  ) : testResults.status === "No Test Cases" ? (
-                    <div className="flex-1 p-4 flex items-center gap-2 text-xs text-amber-700">
-                      <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
-                      <span>No public test cases available for this problem. Attempt saved anyway.</span>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Case Tabs */}
-                      <div className="flex flex-col gap-0 border-r border-slate-200/80 overflow-y-auto min-w-[100px] bg-slate-50/60">
-                        {testResults.results.map((result, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setSelectedCaseIndex(idx)}
-                            className={`flex items-center gap-2 px-3 py-2.5 text-xs font-medium text-left transition-colors border-b border-slate-200/60 whitespace-nowrap ${
-                              selectedCaseIndex === idx
-                                ? "bg-white text-slate-900 font-semibold border-l-2 border-l-blue-600"
-                                : "text-slate-600 hover:bg-white/70"
-                            }`}
-                          >
-                            {result.passed ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                            ) : (
-                              <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                            )}
-                            <span>Case {idx + 1}</span>
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Selected Case Detail */}
-                      {testResults.results[selectedCaseIndex] && (
-                        <div className="flex-1 p-4 overflow-auto space-y-3 font-mono text-[11px]">
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-sans font-semibold mb-1">Input</p>
-                            <pre className="bg-slate-50 border border-slate-200/80 rounded-lg p-2.5 text-slate-700 whitespace-pre-wrap overflow-auto">
-                              {testResults.results[selectedCaseIndex].input}
-                            </pre>
-                          </div>
-                          <div>
-                            <p className="text-[10px] uppercase tracking-wider text-slate-400 font-sans font-semibold mb-1">Expected Output</p>
-                            <pre className="bg-emerald-50 border border-emerald-200/80 rounded-lg p-2.5 text-emerald-800 whitespace-pre-wrap overflow-auto">
-                              {testResults.results[selectedCaseIndex].expected}
-                            </pre>
-                          </div>
-                          {!testResults.results[selectedCaseIndex].passed && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-sans font-semibold mb-1">Your Output</p>
-                              <pre className="bg-rose-50 border border-rose-200/80 rounded-lg p-2.5 text-rose-800 whitespace-pre-wrap overflow-auto">
-                                {testResults.results[selectedCaseIndex].output || "(no output)"}
-                              </pre>
-                            </div>
-                          )}
-                          {testResults.results[selectedCaseIndex].explanation && (
-                            <div>
-                              <p className="text-[10px] uppercase tracking-wider text-slate-400 font-sans font-semibold mb-1">Explanation</p>
-                              <p className="text-slate-600 font-sans text-[11px] leading-relaxed">
-                                {testResults.results[selectedCaseIndex].explanation}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Footer Bar: Auto-save status and recall tip */}
           <div className="px-4 py-2 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
             <div className="flex items-center gap-1.5">
@@ -710,7 +495,6 @@ export function PracticeEditorView({
           </div>
         </div>
       </div>
-
 
       {/* ======================================================== */}
       {/* 3. CONFIRMATION MODAL: Reset Code                        */}
