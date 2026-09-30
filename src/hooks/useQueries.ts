@@ -69,3 +69,4 @@ export function useInvalidateQueries() {
     invalidateAll: () => queryClient.invalidateQueries(),
   };
 }
+

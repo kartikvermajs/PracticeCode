@@ -291,22 +291,22 @@ export function PracticeEditorView({
     ) || acceptedSolutions[0];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-6.25rem)] min-h-[640px] space-y-3 animate-in fade-in duration-300">
+    <div className="flex flex-col h-auto lg:h-[calc(100vh-6.25rem)] min-h-0 lg:min-h-[640px] space-y-3 animate-in fade-in duration-300">
       {/* 1. Practice Top Navigation Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-1 shrink-0">
         <div className="flex items-center gap-3">
           <Link
             href={`/problems/${problem.slug}`}
-            className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 transition-colors"
+            className="p-1.5 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors"
             title="Back to Problem Description"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
               #{problem.leetcodeId}
             </span>
-            <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">
+            <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight">
               {problem.title}
             </h2>
             <DifficultyBadge difficulty={problem.difficulty} size="sm" />
@@ -316,15 +316,15 @@ export function PracticeEditorView({
         {/* Status notification toast */}
         <div className="flex items-center gap-2">
           {notification && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold animate-in fade-in">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold animate-in fade-in">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>{notification}</span>
             </div>
           )}
 
           {isDraftRestored && !notification && (
-            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-xs font-medium animate-in fade-in">
-              <CloudCheck className="w-3.5 h-3.5 text-blue-600" />
+            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-medium animate-in fade-in">
+              <CloudCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>Restored draft</span>
             </div>
           )}
@@ -332,13 +332,13 @@ export function PracticeEditorView({
       </div>
 
       {/* 2. Split Workspace Layout: LEFT 45% / RIGHT 55% */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 overflow-visible lg:overflow-hidden">
         {/* ======================================================== */}
         {/* LEFT PANEL 45%: Problem Statement                        */}
         {/* ======================================================== */}
-        <div className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-white border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="w-full lg:w-[45%] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs overflow-hidden max-h-[380px] lg:max-h-none">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-200/80 text-xs font-semibold text-slate-700 shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shrink-0">
             <div className="flex items-center gap-2">
               <FileCheck className="w-4 h-4 text-blue-600" />
               <span>Problem Statement</span>
@@ -351,46 +351,46 @@ export function PracticeEditorView({
           </div>
 
           {/* Scrollable Problem Statement Content */}
-          <div className="flex-1 overflow-y-auto p-5 space-y-5 text-xs sm:text-sm">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 text-xs sm:text-sm">
             {/* Description */}
-            <div className="text-slate-700 leading-relaxed whitespace-pre-line space-y-2">
+            <div className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line space-y-2">
               {problem.description}
             </div>
 
             {/* Examples */}
             {problem.examples.length > 0 && (
               <div className="space-y-3 pt-2">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-400">
+                <p className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500">
                   Examples
                 </p>
                 {problem.examples.map((example, i) => (
                   <div
                     key={i}
-                    className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 font-mono text-xs space-y-1.5"
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 font-mono text-xs space-y-1.5"
                   >
-                    <p className="text-slate-500 font-sans font-semibold text-xs">
+                    <p className="text-slate-500 dark:text-slate-400 font-sans font-semibold text-xs">
                       Example {i + 1}:
                     </p>
                     <div className="space-y-1 pl-2.5 border-l-2 border-blue-500/50">
                       <p>
-                        <span className="text-slate-700 font-sans font-semibold">
+                        <span className="text-slate-700 dark:text-slate-300 font-sans font-semibold">
                           Input:{" "}
                         </span>
-                        <span className="text-slate-600 font-mono">
+                        <span className="text-slate-600 dark:text-slate-400 font-mono break-all sm:break-normal">
                           {example.input}
                         </span>
                       </p>
                       <p>
-                        <span className="text-slate-700 font-sans font-semibold">
+                        <span className="text-slate-700 dark:text-slate-300 font-sans font-semibold">
                           Output:{" "}
                         </span>
-                        <span className="text-slate-600 font-mono">
+                        <span className="text-slate-600 dark:text-slate-400 font-mono break-all sm:break-normal">
                           {example.output}
                         </span>
                       </p>
                       {example.explanation && (
-                        <p className="font-sans text-[11px] text-slate-500 pt-0.5">
-                          <strong className="text-slate-700">Explanation: </strong>
+                        <p className="font-sans text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                          <strong className="text-slate-700 dark:text-slate-300">Explanation: </strong>
                           {example.explanation}
                         </p>
                       )}
@@ -403,10 +403,10 @@ export function PracticeEditorView({
             {/* Constraints */}
             {problem.constraints.length > 0 && (
               <div className="space-y-2 pt-2">
-                <p className="font-bold text-slate-900 text-xs uppercase tracking-wider text-slate-400">
+                <p className="font-bold text-slate-900 dark:text-white text-xs uppercase tracking-wider text-slate-400 dark:text-slate-500">
                   Constraints
                 </p>
-                <ul className="list-disc pl-4 space-y-1.5 font-mono text-xs text-slate-600 bg-slate-50/60 p-3 rounded-xl border border-slate-200/60">
+                <ul className="list-disc pl-4 space-y-1.5 font-mono text-xs text-slate-600 dark:text-slate-300 bg-slate-50/60 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
                   {problem.constraints.map((c, i) => (
                     <li key={i}>{c}</li>
                   ))}
@@ -417,13 +417,13 @@ export function PracticeEditorView({
 
           {/* External Reference Link */}
           {problem.url && (
-            <div className="px-4 py-2 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+            <div className="px-4 py-2 bg-slate-50/60 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 shrink-0">
               <span>View full problem online:</span>
               <a
                 href={problem.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 font-semibold"
+                className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold"
               >
                 <span>LeetCode #{problem.leetcodeId}</span>
                 <ExternalLink className="w-3 h-3" />
@@ -435,18 +435,18 @@ export function PracticeEditorView({
         {/* ======================================================== */}
         {/* RIGHT PANEL 55%: Monaco Practice Code Editor            */}
         {/* ======================================================== */}
-        <div className="w-full lg:w-[55%] flex flex-col rounded-2xl bg-white border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="w-full lg:w-[55%] flex flex-col rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs overflow-hidden min-h-[460px] lg:min-h-0">
           {/* Editor Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-slate-50/90 border-b border-slate-200/80 shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2.5 bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-700/80 shrink-0">
             {/* Language Selector */}
             <div className="flex items-center gap-2">
-              <Code2 className="w-4 h-4 text-blue-600" />
+              <Code2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               <select
                 value={language}
                 onChange={(e) =>
                   handleLanguageChange(e.target.value as SupportedLanguage)
                 }
-                className="text-xs bg-white border border-slate-200 text-slate-800 font-semibold rounded-xl px-3 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                className="text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold rounded-xl px-3 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
               >
                 {SUPPORTED_LANGUAGES.map((lang) => (
                   <option key={lang.id} value={lang.id}>
@@ -457,12 +457,12 @@ export function PracticeEditorView({
             </div>
 
             {/* Toolbar Buttons: Reset, Save Attempt, Reveal Solution */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               {/* Reset Button */}
               <button
                 type="button"
                 onClick={() => setShowResetConfirm(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors shadow-2xs active:scale-95"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition-colors shadow-2xs active:scale-95"
                 title="Reset code to clean starter template"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
@@ -473,10 +473,10 @@ export function PracticeEditorView({
               <button
                 type="button"
                 onClick={() => setShowRevealConfirm(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100/80 border border-amber-200/80 rounded-xl transition-colors shadow-2xs active:scale-95"
+                className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/60 border border-amber-200/80 dark:border-amber-800/80 rounded-xl transition-colors shadow-2xs active:scale-95"
                 title="Inspect original accepted solution in a read-only vault"
               >
-                <Eye className="w-3.5 h-3.5 text-amber-600" />
+                <Eye className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 <span>Reveal Solution</span>
               </button>
 
@@ -485,7 +485,7 @@ export function PracticeEditorView({
                 type="button"
                 onClick={handleSaveAttempt}
                 disabled={isSaving}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all active:scale-95 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all active:scale-95 disabled:opacity-50"
                 title="Save this practice attempt to your revision history"
               >
                 <Save className="w-3.5 h-3.5" />

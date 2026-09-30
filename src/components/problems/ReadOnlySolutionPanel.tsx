@@ -226,20 +226,20 @@ export function ReadOnlySolutionPanel({
   return (
     <div className="space-y-4">
       {/* Solution Card Container */}
-      <div className="rounded-2xl border border-slate-200/90 bg-white overflow-hidden shadow-2xs">
+      <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-2xs">
         {/* Header Toolbar (Always retains YOUR ORIGINAL SOLUTION title) */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50/90 border-b border-slate-200/80">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50/90 dark:bg-slate-800/80 border-b border-slate-200/80 dark:border-slate-700/80">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <Terminal className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                   Your Original Solution
                 </h3>
                 {hasSolution && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 shadow-2xs">
                     <Lock className="w-2.5 h-2.5 text-slate-400" />
                     Read-only
                   </span>
@@ -249,13 +249,13 @@ export function ReadOnlySolutionPanel({
           </div>
 
           {hasSolution && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Language Selector if solutions exist */}
               {solutionsList.length > 1 && (
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="text-xs font-semibold bg-white border border-slate-200 text-slate-700 rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                  className="text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
                 >
                   {solutionsList.map((sol) => (
                     <option key={sol.id || sol.language} value={sol.language}>
@@ -269,10 +269,10 @@ export function ReadOnlySolutionPanel({
               <button
                 type="button"
                 onClick={handleOpenEditModal}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200 rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
                 title="Edit original solution"
               >
-                <Pencil className="w-3.5 h-3.5 text-slate-500" />
+                <Pencil className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>Edit Solution</span>
               </button>
 
@@ -280,17 +280,17 @@ export function ReadOnlySolutionPanel({
               <button
                 type="button"
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200 rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xs transition-all active:scale-95 cursor-pointer"
                 title="Copy code to clipboard"
               >
                 {copied ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    <span className="text-emerald-700">Copied!</span>
+                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-emerald-700 dark:text-emerald-300">Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-slate-500" />
+                    <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                     <span>Copy Code</span>
                   </>
                 )}
@@ -303,7 +303,7 @@ export function ReadOnlySolutionPanel({
         {hasSolution ? (
           <>
             {/* Monaco Editor (Read-Only) */}
-            <div className="p-1 bg-[#fffffe]">
+            <div className="p-1 bg-[#fffffe] dark:bg-[#1e1e1e]">
               <Editor
                 height="420px"
                 language={monacoLang}
@@ -335,27 +335,27 @@ export function ReadOnlySolutionPanel({
             </div>
 
             {/* Informative Footer */}
-            <div className="px-4 py-2.5 bg-slate-50/60 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <div className="px-4 py-2.5 bg-slate-50/60 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
               <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>Accepted Submission Vault ({getLanguageLabel(selectedLanguage)})</span>
               </div>
-              <span className="font-mono text-[10px] text-slate-400">
+              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">
                 {codeToDisplay.trim().split("\n").length} lines
               </span>
             </div>
           </>
         ) : (
           /* Clean Empty State Card */
-          <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-4 bg-white">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shadow-2xs">
+          <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center space-y-4 bg-white dark:bg-slate-900">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 shadow-2xs">
               <Code2 className="w-7 h-7" />
             </div>
             <div className="max-w-md space-y-1.5">
-              <h4 className="text-base font-bold text-slate-900">
+              <h4 className="text-base font-bold text-slate-900 dark:text-white">
                 Original solution not added yet
               </h4>
-              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                 Add your previously accepted LeetCode solution here so you can use it as a reference while practicing.
               </p>
             </div>
@@ -374,23 +374,23 @@ export function ReadOnlySolutionPanel({
       </div>
 
       {/* Action Buttons: Practice Prompt */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div>
-          <h4 className="text-xs font-bold text-slate-900">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-2xs flex flex-col xl:flex-row xl:items-center justify-between gap-3.5 overflow-hidden">
+        <div className="min-w-0 flex-1">
+          <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
             Ready to test your recall?
           </h4>
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Practice in the clean editor without glancing at this solution.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full xl:w-auto shrink-0">
           {leetcodeUrl && (
             <a
               href={leetcodeUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl shadow-2xs transition-colors flex-1 sm:flex-none"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xs transition-colors flex-1 sm:flex-none"
             >
               <span>Open on LeetCode</span>
               <ExternalLink className="w-3.5 h-3.5" />

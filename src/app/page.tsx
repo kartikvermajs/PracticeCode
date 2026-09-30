@@ -8,3 +8,4 @@ export default async function DashboardPage() {
   const data = await getDashboardData();
   return <DashboardView initialData={data} />;
 }
+
