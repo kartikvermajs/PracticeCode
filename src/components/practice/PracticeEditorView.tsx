@@ -112,6 +112,7 @@ export function PracticeEditorView({
   const [copiedSolution, setCopiedSolution] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
   const [showFeelModal, setShowFeelModal] = useState(false);
+  const [showStreakBroken, setShowStreakBroken] = useState(false);
   const isInitialMount = useRef(true);
 
   // Storage key generator for persistent local drafts
@@ -193,6 +194,9 @@ export function PracticeEditorView({
 
     setIsSaving(true);
     try {
+      // Send client's local date so the server can compute streak in the user's timezone
+      const clientDate = new Date().toLocaleDateString("en-CA"); // "YYYY-MM-DD" in local TZ
+
       const res = await fetch("/api/practice/attempt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -201,6 +205,7 @@ export function PracticeEditorView({
           language,
           code,
           status: "Passed",
+          clientDate,
         }),
       });
 
@@ -211,12 +216,17 @@ export function PracticeEditorView({
         if (typeof data.streak === "number") {
           incrementStreak(data.streak);
         }
-        setNotification(
-          data.message || `Practice attempt saved! Active streak: ${data.streak} days.`
-        );
-        setTimeout(() => setNotification(null), 3500);
-        // Show "How did this feel?" recall rating prompt
-        setShowFeelModal(true);
+
+        if (data.streakBroke) {
+          // Streak was broken — show break popup instead of normal notification
+          setShowStreakBroken(true);
+        } else {
+          setNotification(
+            data.message || `Practice attempt saved! Streak: ${data.streak} day${data.streak === 1 ? "" : "s"}.`
+          );
+          setTimeout(() => setNotification(null), 3500);
+          setShowFeelModal(true);
+        }
       } else {
         setNotification(data.error || "Failed to save attempt.");
         setTimeout(() => setNotification(null), 3000);
@@ -705,6 +715,62 @@ export function PracticeEditorView({
               >
                 Close Solution
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* 7. STREAK BROKEN MODAL                                   */}
+      {/* ======================================================== */}
+      {showStreakBroken && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Coloured top bar */}
+            <div className="h-1.5 bg-gradient-to-r from-orange-400 to-rose-500" />
+
+            <div className="p-7 text-center space-y-4">
+              {/* Icon */}
+              <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-3xl shadow-2xs select-none">
+                💔
+              </div>
+
+              {/* Message */}
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-bold text-slate-900">
+                  Oops! Your streak broke.
+                </h3>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  Try to be regular! Practicing every day is the fastest way to retain what you've learned.
+                </p>
+              </div>
+
+              {/* New streak info */}
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-50 border border-orange-200 text-sm font-semibold text-orange-700">
+                <span>🔥</span>
+                <span>Starting fresh — streak reset to 1</span>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStreakBroken(false);
+                    setShowFeelModal(true);
+                  }}
+                  className="w-full px-5 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-all active:scale-95"
+                >
+                  Keep Going 💪
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowStreakBroken(false)}
+                  className="w-full px-5 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           </div>
         </div>

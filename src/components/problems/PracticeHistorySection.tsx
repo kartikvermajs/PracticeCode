@@ -147,7 +147,7 @@ export function PracticeHistorySection({
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Immutable log of every practice recall session. Older attempts are preserved forever.
+              One attempt recorded per day. Re-saving updates today&apos;s entry.
             </p>
           </div>
         </div>
