@@ -114,7 +114,7 @@ export function Topbar({ onOpenMobileSidebar }: TopbarProps) {
                         Revision queue active
                       </p>
                       <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5">
-                        Single Number (#136) is scheduled for review today.
+                        Two Sum (#1) is scheduled for review today.
                       </p>
                     </div>
                   </div>

@@ -1,8 +1,7 @@
 import { prisma } from "../src/lib/prisma";
 
-
 async function main() {
-  console.log("🌱 Seeding CodeRev database with exactly one question: LeetCode #136 Single Number...");
+  console.log("🌱 Seeding CodeRev database with exactly one question: LeetCode #1 Two Sum...");
 
   // 1. Seed Default User
   const user = await prisma.user.upsert({
@@ -20,49 +19,62 @@ async function main() {
 
   console.log(`👤 User verified: ${user.name} (${user.email})`);
 
-  // 2. Clear out any other questions to ensure ONLY Single Number (#136) exists
+  // 2. Clear out any other questions to ensure ONLY Two Sum (#1) exists
   const deleted = await prisma.problem.deleteMany({
     where: {
       leetcodeId: {
-        not: 136,
+        not: 1,
       },
     },
   });
   if (deleted.count > 0) {
-    console.log(`🧹 Removed ${deleted.count} other problem(s) to leave only #136 Single Number.`);
+    console.log(`🧹 Removed ${deleted.count} other problem(s) to leave only #1 Two Sum.`);
   }
 
-  // 3. Define exact LeetCode #136 Problem
-  const singleNumberData = {
-    leetcodeId: 136,
-    title: "Single Number",
-    slug: "single-number",
+  // 3. Define exact LeetCode #1 Problem
+  const twoSumData = {
+    leetcodeId: 1,
+    title: "Two Sum",
+    slug: "two-sum",
     difficulty: "Easy",
-    url: "https://leetcode.com/problems/single-number/",
-    description: `Given a non-empty array of integers nums, every element appears twice except for one. Find that single one.
+    url: "https://leetcode.com/problems/two-sum/",
+    description: `Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.
 
-You must implement a solution with a linear runtime complexity and use only constant extra space.`,
+You may assume that each input would have exactly one solution, and you may not use the same element twice.
+
+You can return the answer in any order.`,
     examples: [
-      { input: "nums = [2,2,1]", output: "1" },
-      { input: "nums = [4,1,2,1,2]", output: "4" },
-      { input: "nums = [1]", output: "1" },
+      {
+        input: "nums = [2,7,11,15], target = 9",
+        output: "[0,1]",
+        explanation: "Because nums[0] + nums[1] == 9, we return [0, 1].",
+      },
+      {
+        input: "nums = [3,2,4], target = 6",
+        output: "[1,2]",
+      },
+      {
+        input: "nums = [3,3], target = 6",
+        output: "[0,1]",
+      },
     ],
     constraints: [
-      "1 <= nums.length <= 3 * 10^4",
-      "-3 * 10^4 <= nums[i] <= 3 * 10^4",
-      "Each element in the array appears twice except for one element which appears only once.",
+      "2 <= nums.length <= 10^4",
+      "-10^9 <= nums[i] <= 10^9",
+      "-10^9 <= target <= 10^9",
+      "Only one valid answer exists.",
     ],
-    tags: ["Array", "Bit Manipulation"],
+    tags: ["Array", "Hash Table"],
   };
 
-  // Upsert Problem #136
+  // Upsert Problem #1
   const problem = await prisma.problem.upsert({
-    where: { leetcodeId: 136 },
+    where: { leetcodeId: 1 },
     update: {
-      ...singleNumberData,
+      ...twoSumData,
     },
     create: {
-      ...singleNumberData,
+      ...twoSumData,
     },
   });
 
@@ -74,27 +86,36 @@ You must implement a solution with a linear runtime complexity and use only cons
       language: "cpp",
       isAccepted: true,
       code: `#include <vector>
+#include <unordered_map>
 
 class Solution {
 public:
-    int singleNumber(std::vector<int>& nums) {
-        int result = 0;
-        for (int num : nums) {
-            result ^= num; // Bitwise XOR cancels pairs: A ^ A = 0, A ^ 0 = A
+    std::vector<int> twoSum(std::vector<int>& nums, int target) {
+        std::unordered_map<int, int> numMap;
+        for (int i = 0; i < nums.size(); i++) {
+            int complement = target - nums[i];
+            if (numMap.find(complement) != numMap.end()) {
+                return {numMap[complement], i};
+            }
+            numMap[nums[i]] = i;
         }
-        return result;
+        return {};
     }
 };`,
     },
     {
       language: "typescript",
       isAccepted: true,
-      code: `function singleNumber(nums: number[]): number {
-  let unique = 0;
-  for (const num of nums) {
-    unique ^= num;
+      code: `function twoSum(nums: number[], target: number): number[] {
+  const map = new Map<number, number>();
+  for (let i = 0; i < nums.length; i++) {
+    const complement = target - nums[i];
+    if (map.has(complement)) {
+      return [map.get(complement)!, i];
+    }
+    map.set(nums[i], i);
   }
-  return unique;
+  return [];
 }`,
     },
   ];
@@ -129,9 +150,9 @@ public:
     }
   }
 
-  // 5. Revision Schedule for Problem #136 (Due today for spaced repetition revision)
+  // 5. Revision Schedule for Problem #1 (Due today for spaced repetition revision)
   const now = new Date();
-  const lastPracticedAt = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); // 3 days ago
+  const lastPracticedAt = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000); // 2 days ago
   const nextReviewAt = new Date(now.getTime() - 1 * 60 * 60 * 1000); // 1 hour ago = Due Today
 
   await prisma.revisionSchedule.upsert({
@@ -172,13 +193,13 @@ public:
         code: solutions[1].code,
         status: "Passed",
         startedAt: lastPracticedAt,
-        completedAt: new Date(lastPracticedAt.getTime() + 4 * 60 * 1000), // 4 mins duration
+        completedAt: new Date(lastPracticedAt.getTime() + 3 * 60 * 1000), // 3 mins duration
       },
     });
     console.log("   + Practice attempt recorded.");
   }
 
-  console.log("\n✅ Database now contains ONLY 1 question: #136 Single Number (https://leetcode.com/problems/single-number/)");
+  console.log("\n✅ Database now contains ONLY 1 question: #1 Two Sum (https://leetcode.com/problems/two-sum/)");
 }
 
 main()
