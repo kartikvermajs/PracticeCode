@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { cachedQuery, CACHE_TAGS } from "@/lib/cache";
 
 export type RecallRating = "Difficult" | "Good" | "Easy";
 
@@ -147,26 +148,33 @@ export async function applyRevisionRating(
 }
 
 /**
- * Fetches all problems due for revision (nextReviewAt <= current date)
+ * Fetches all problems due for revision (nextReviewAt <= current date) with caching
  */
 export async function getDueProblemsForRevision(userId?: string) {
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  return cachedQuery(
+    `due-problems-${userId || "all"}`,
+    async () => {
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
 
-  return prisma.revisionSchedule.findMany({
-    where: {
-      nextReviewAt: { lte: endOfToday },
-      ...(userId ? { userId } : {}),
-    },
-    include: {
-      problem: {
+      return prisma.revisionSchedule.findMany({
+        where: {
+          nextReviewAt: { lte: endOfToday },
+          ...(userId ? { userId } : {}),
+        },
         include: {
-          solutions: {
-            where: { isAccepted: true },
+          problem: {
+            include: {
+              solutions: {
+                where: { isAccepted: true },
+              },
+            },
           },
         },
-      },
+        orderBy: { nextReviewAt: "asc" },
+      });
     },
-    orderBy: { nextReviewAt: "asc" },
-  });
+    { ttlSeconds: 60, tags: [CACHE_TAGS.DUE_REVISION, CACHE_TAGS.DASHBOARD] }
+  );
 }
+

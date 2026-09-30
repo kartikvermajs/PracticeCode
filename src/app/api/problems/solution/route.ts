@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { MOCK_PROBLEMS } from "@/data/mock-problems";
+import { invalidateCacheTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function POST(req: NextRequest) {
   try {

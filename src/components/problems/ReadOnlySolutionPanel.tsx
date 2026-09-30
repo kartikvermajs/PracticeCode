@@ -19,6 +19,8 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useInvalidateQueries } from "@/hooks/useQueries";
 
 // Load Monaco Editor dynamically with ssr: false for Next.js App Router
 const Editor = dynamic(() => import("@monaco-editor/react"), {
@@ -88,6 +90,8 @@ export function ReadOnlySolutionPanel({
   problemTitle,
 }: ReadOnlySolutionPanelProps) {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
+  const { invalidateProblems, invalidateProblem } = useInvalidateQueries();
 
   const [solutionsList, setSolutionsList] = useState<SolutionItem[]>(solutions);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(() => {
@@ -207,6 +211,9 @@ export function ReadOnlySolutionPanel({
         setSelectedLanguage(savedSol.language);
       }
 
+      invalidateProblems();
+      invalidateProblem(slug);
+
       setIsModalOpen(false);
       router.refresh();
     } catch (err: any) {
@@ -301,7 +308,7 @@ export function ReadOnlySolutionPanel({
                 height="420px"
                 language={monacoLang}
                 value={codeToDisplay}
-                theme="light"
+                theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
                 options={{
                   readOnly: true,
                   domReadOnly: true,
@@ -489,7 +496,7 @@ export function ReadOnlySolutionPanel({
                     language={getMonacoLanguage(modalLanguage)}
                     value={modalCode}
                     onChange={(val) => setModalCode(val || "")}
-                    theme="light"
+                    theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
                     options={{
                       minimap: { enabled: false },
                       scrollBeyondLastLine: false,

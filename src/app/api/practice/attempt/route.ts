@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { calculateNextReview, type RecallRating } from "@/services/revision.service";
+import { invalidateCacheTags, CACHE_TAGS } from "@/lib/cache";
 
 export async function POST(req: Request) {
   try {
@@ -185,6 +186,14 @@ export async function POST(req: Request) {
         streakBroke = true;
       }
     }
+
+    // Invalidate cached dashboard, due-revision, problems-library, and specific problem details
+    invalidateCacheTags([
+      CACHE_TAGS.DASHBOARD,
+      CACHE_TAGS.DUE_REVISION,
+      CACHE_TAGS.PROBLEMS_LIBRARY,
+      CACHE_TAGS.PROBLEM_SLUG(foundProblem?.slug || problemId),
+    ]);
 
     return NextResponse.json({
       success: true,

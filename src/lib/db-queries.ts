@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { cachedQuery, CACHE_TAGS } from "./cache";
 
 export interface DashboardStats {
   totalProblems: number;
@@ -105,162 +106,168 @@ function calculateStreak(attempts: { createdAt: Date }[]): number {
 }
 
 /**
- * Fetch all dashboard metrics with real database queries
+ * Fetch all dashboard metrics with advanced multi-tier caching (in-memory + Next.js data cache)
  */
 export async function getDashboardData(): Promise<DashboardData> {
-  const endOfToday = new Date();
-  endOfToday.setHours(23, 59, 59, 999);
+  return cachedQuery(
+    "dashboard-metrics",
+    async () => {
+      const endOfToday = new Date();
+      endOfToday.setHours(23, 59, 59, 999);
 
-  try {
-    // 1. Parallel database queries for performance
-    const [
-      allProblems,
-      dueSchedules,
-      recentAttempts,
-      passedAttempts,
-      acceptedSolutions,
-      allAttemptsForStreak,
-    ] = await Promise.all([
-      prisma.problem.findMany({
-        select: {
-          id: true,
-          leetcodeId: true,
-          title: true,
-          slug: true,
-          difficulty: true,
-          tags: true,
-        },
-        orderBy: { leetcodeId: "asc" },
-      }),
+      try {
+        // 1. Parallel database queries for performance
+        const [
+          allProblems,
+          dueSchedules,
+          recentAttempts,
+          passedAttempts,
+          acceptedSolutions,
+          allAttemptsForStreak,
+        ] = await Promise.all([
+          prisma.problem.findMany({
+            select: {
+              id: true,
+              leetcodeId: true,
+              title: true,
+              slug: true,
+              difficulty: true,
+              tags: true,
+            },
+            orderBy: { leetcodeId: "asc" },
+          }),
 
-      prisma.revisionSchedule.findMany({
-        where: {
-          nextReviewAt: { lte: endOfToday },
-        },
-        include: {
-          problem: true,
-        },
-        orderBy: { nextReviewAt: "asc" },
-      }),
+          prisma.revisionSchedule.findMany({
+            where: {
+              nextReviewAt: { lte: endOfToday },
+            },
+            include: {
+              problem: true,
+            },
+            orderBy: { nextReviewAt: "asc" },
+          }),
 
-      prisma.practiceAttempt.findMany({
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        include: {
-          problem: true,
-        },
-      }),
+          prisma.practiceAttempt.findMany({
+            take: 5,
+            orderBy: { createdAt: "desc" },
+            include: {
+              problem: true,
+            },
+          }),
 
-      prisma.practiceAttempt.findMany({
-        where: { status: "Passed" },
-        select: { problemId: true },
-        distinct: ["problemId"],
-      }),
+          prisma.practiceAttempt.findMany({
+            where: { status: "Passed" },
+            select: { problemId: true },
+            distinct: ["problemId"],
+          }),
 
-      prisma.solution.findMany({
-        where: { isAccepted: true },
-        select: { problemId: true },
-        distinct: ["problemId"],
-      }),
+          prisma.solution.findMany({
+            where: { isAccepted: true },
+            select: { problemId: true },
+            distinct: ["problemId"],
+          }),
 
-      prisma.practiceAttempt.findMany({
-        select: { createdAt: true },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      }),
-    ]);
+          prisma.practiceAttempt.findMany({
+            select: { createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 100,
+          }),
+        ]);
 
-    // 2. Compute Solved Problem Set
-    const solvedProblemIdSet = new Set<string>();
-    passedAttempts.forEach((a) => solvedProblemIdSet.add(a.problemId));
-    acceptedSolutions.forEach((s) => solvedProblemIdSet.add(s.problemId));
+        // 2. Compute Solved Problem Set
+        const solvedProblemIdSet = new Set<string>();
+        passedAttempts.forEach((a) => solvedProblemIdSet.add(a.problemId));
+        acceptedSolutions.forEach((s) => solvedProblemIdSet.add(s.problemId));
 
-    // 3. Difficulty Breakdown
-    let easyTotal = 0;
-    let easySolved = 0;
-    let mediumTotal = 0;
-    let mediumSolved = 0;
-    let hardTotal = 0;
-    let hardSolved = 0;
+        // 3. Difficulty Breakdown
+        let easyTotal = 0;
+        let easySolved = 0;
+        let mediumTotal = 0;
+        let mediumSolved = 0;
+        let hardTotal = 0;
+        let hardSolved = 0;
 
-    allProblems.forEach((p) => {
-      const isSolved = solvedProblemIdSet.has(p.id);
-      const diff = p.difficulty as "Easy" | "Medium" | "Hard";
-      if (diff === "Easy") {
-        easyTotal++;
-        if (isSolved) easySolved++;
-      } else if (diff === "Medium") {
-        mediumTotal++;
-        if (isSolved) mediumSolved++;
-      } else if (diff === "Hard") {
-        hardTotal++;
-        if (isSolved) hardSolved++;
+        allProblems.forEach((p) => {
+          const isSolved = solvedProblemIdSet.has(p.id);
+          const diff = p.difficulty as "Easy" | "Medium" | "Hard";
+          if (diff === "Easy") {
+            easyTotal++;
+            if (isSolved) easySolved++;
+          } else if (diff === "Medium") {
+            mediumTotal++;
+            if (isSolved) mediumSolved++;
+          } else if (diff === "Hard") {
+            hardTotal++;
+            if (isSolved) hardSolved++;
+          }
+        });
+
+        // 4. Calculate Streak
+        const practiceStreakDays = calculateStreak(allAttemptsForStreak);
+
+        // 5. Map Revision Items
+        const revisionProblems: DashboardRevisionItem[] = dueSchedules.map((schedule) => ({
+          id: schedule.problem.id,
+          number: schedule.problem.leetcodeId,
+          title: schedule.problem.title,
+          slug: schedule.problem.slug,
+          difficulty: schedule.problem.difficulty as "Easy" | "Medium" | "Hard",
+          topics: schedule.problem.tags,
+          lastPracticed: formatRelativeTime(schedule.lastPracticedAt),
+          nextReview: "Today",
+        }));
+
+        // 6. Map Recent Practice Items
+        const recentPractices: DashboardRecentItem[] = recentAttempts.map((attempt) => ({
+          id: attempt.id,
+          problemNumber: attempt.problem.leetcodeId,
+          problemTitle: attempt.problem.title,
+          slug: attempt.problem.slug,
+          difficulty: attempt.problem.difficulty as "Easy" | "Medium" | "Hard",
+          lastPracticed: formatRelativeTime(attempt.createdAt),
+          result: (attempt.status as "Passed" | "Partial" | "Needs Review") || "Passed",
+        }));
+
+        return {
+          stats: {
+            totalProblems: allProblems.length,
+            totalSolved: solvedProblemIdSet.size,
+            solvedCount: solvedProblemIdSet.size,
+            dueTodayCount: dueSchedules.length,
+            practiceStreakDays,
+            easyTotal,
+            easySolved,
+            mediumTotal,
+            mediumSolved,
+            hardTotal,
+            hardSolved,
+          },
+          revisionProblems,
+          recentPractices,
+        };
+      } catch (error) {
+        console.error("Database query fallback in getDashboardData:", error);
+        return {
+          stats: {
+            totalProblems: 0,
+            totalSolved: 0,
+            solvedCount: 0,
+            dueTodayCount: 0,
+            practiceStreakDays: 0,
+            easyTotal: 0,
+            easySolved: 0,
+            mediumTotal: 0,
+            mediumSolved: 0,
+            hardTotal: 0,
+            hardSolved: 0,
+          },
+          revisionProblems: [],
+          recentPractices: [],
+        };
       }
-    });
-
-    // 4. Calculate Streak
-    const practiceStreakDays = calculateStreak(allAttemptsForStreak);
-
-    // 5. Map Revision Items
-    const revisionProblems: DashboardRevisionItem[] = dueSchedules.map((schedule) => ({
-      id: schedule.problem.id,
-      number: schedule.problem.leetcodeId,
-      title: schedule.problem.title,
-      slug: schedule.problem.slug,
-      difficulty: schedule.problem.difficulty as "Easy" | "Medium" | "Hard",
-      topics: schedule.problem.tags,
-      lastPracticed: formatRelativeTime(schedule.lastPracticedAt),
-      nextReview: "Today",
-    }));
-
-    // 6. Map Recent Practice Items
-    const recentPractices: DashboardRecentItem[] = recentAttempts.map((attempt) => ({
-      id: attempt.id,
-      problemNumber: attempt.problem.leetcodeId,
-      problemTitle: attempt.problem.title,
-      slug: attempt.problem.slug,
-      difficulty: attempt.problem.difficulty as "Easy" | "Medium" | "Hard",
-      lastPracticed: formatRelativeTime(attempt.createdAt),
-      result: (attempt.status as "Passed" | "Partial" | "Needs Review") || "Passed",
-    }));
-
-    return {
-      stats: {
-        totalProblems: allProblems.length,
-        totalSolved: solvedProblemIdSet.size,
-        solvedCount: solvedProblemIdSet.size,
-        dueTodayCount: dueSchedules.length,
-        practiceStreakDays,
-        easyTotal,
-        easySolved,
-        mediumTotal,
-        mediumSolved,
-        hardTotal,
-        hardSolved,
-      },
-      revisionProblems,
-      recentPractices,
-    };
-  } catch (error) {
-    console.error("Database query fallback in getDashboardData:", error);
-    return {
-      stats: {
-        totalProblems: 0,
-        totalSolved: 0,
-        solvedCount: 0,
-        dueTodayCount: 0,
-        practiceStreakDays: 0,
-        easyTotal: 0,
-        easySolved: 0,
-        mediumTotal: 0,
-        mediumSolved: 0,
-        hardTotal: 0,
-        hardSolved: 0,
-      },
-      revisionProblems: [],
-      recentPractices: [],
-    };
-  }
+    },
+    { ttlSeconds: 60, tags: [CACHE_TAGS.DASHBOARD] }
+  );
 }
 
 function formatNextReviewTime(date?: Date | null): { text: string; isDue: boolean } {
@@ -329,7 +336,88 @@ export interface ProblemsLibraryResult {
 }
 
 /**
- * Fetch and filter problems directly from the Problem database table
+ * Internal cached fetcher for all problems with full relations
+ */
+async function getAllEnrichedProblems(): Promise<{
+  allItems: ProblemLibraryItem[];
+  allTags: string[];
+}> {
+  return cachedQuery(
+    "all-enriched-problems-collection",
+    async () => {
+      // 1. Fetch all problems with relational data from Neon PostgreSQL
+      const rawProblems = await prisma.problem.findMany({
+        include: {
+          solutions: {
+            select: { isAccepted: true },
+          },
+          practiceAttempts: {
+            select: { id: true, status: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+          },
+          revisionSchedules: {
+            select: { lastPracticedAt: true, nextReviewAt: true, status: true },
+          },
+        },
+        orderBy: { leetcodeId: "asc" },
+      });
+
+      // 2. Collect all distinct tags for filter toolbar
+      const tagSet = new Set<string>();
+      rawProblems.forEach((p) => {
+        p.tags.forEach((t) => tagSet.add(t));
+      });
+      const allTags = Array.from(tagSet).sort();
+
+      // 3. Map into enriched items
+      const allItems: ProblemLibraryItem[] = rawProblems.map((p) => {
+        const hasAcceptedSolution = p.solutions.some((s) => s.isAccepted);
+        const hasPassedAttempt = p.practiceAttempts.some((a) => a.status === "Passed");
+        const isSolved = hasAcceptedSolution || hasPassedAttempt;
+
+        const latestAttempt = p.practiceAttempts[0];
+        const schedule = p.revisionSchedules[0];
+
+        const lastPracticedAt =
+          schedule?.lastPracticedAt || (latestAttempt ? latestAttempt.createdAt : null);
+        const nextReviewAt = schedule?.nextReviewAt || null;
+
+        const reviewInfo = formatNextReviewTime(nextReviewAt);
+
+        let statusText: "Solved" | "Attempted" | "Unsolved" = "Unsolved";
+        if (isSolved) {
+          statusText = "Solved";
+        } else if (p.practiceAttempts.length > 0) {
+          statusText = "Attempted";
+        }
+
+        return {
+          id: p.id,
+          number: p.leetcodeId,
+          title: p.title,
+          slug: p.slug,
+          difficulty: (p.difficulty as "Easy" | "Medium" | "Hard") || "Easy",
+          tags: p.tags,
+          url: p.url,
+          isSolved,
+          statusText,
+          isDue: reviewInfo.isDue,
+          lastPracticed: formatRelativeTime(lastPracticedAt),
+          lastPracticedAt,
+          nextReview: reviewInfo.text,
+          nextReviewAt,
+          attemptCount: p.practiceAttempts.length,
+        };
+      });
+
+      return { allItems, allTags };
+    },
+    { ttlSeconds: 120, tags: [CACHE_TAGS.PROBLEMS_LIBRARY] }
+  );
+}
+
+/**
+ * Fetch and filter problems using high-performance cached dataset
  */
 export async function getProblemsLibrary(
   options: ProblemsFilterOptions = {}
@@ -345,77 +433,14 @@ export async function getProblemsLibrary(
   } = options;
 
   try {
-    // 1. Fetch all problems with relational data from Neon PostgreSQL
-    const rawProblems = await prisma.problem.findMany({
-      include: {
-        solutions: {
-          select: { isAccepted: true },
-        },
-        practiceAttempts: {
-          select: { id: true, status: true, createdAt: true },
-          orderBy: { createdAt: "desc" },
-        },
-        revisionSchedules: {
-          select: { lastPracticedAt: true, nextReviewAt: true, status: true },
-        },
-      },
-      orderBy: { leetcodeId: "asc" },
-    });
+    const { allItems, allTags } = await getAllEnrichedProblems();
 
-    // 2. Collect all distinct tags for filter toolbar
-    const tagSet = new Set<string>();
-    rawProblems.forEach((p) => {
-      p.tags.forEach((t) => tagSet.add(t));
-    });
-    const allTags = Array.from(tagSet).sort();
-
-    // 3. Map into enriched items
-    const allItems: ProblemLibraryItem[] = rawProblems.map((p) => {
-      const hasAcceptedSolution = p.solutions.some((s) => s.isAccepted);
-      const hasPassedAttempt = p.practiceAttempts.some((a) => a.status === "Passed");
-      const isSolved = hasAcceptedSolution || hasPassedAttempt;
-
-      const latestAttempt = p.practiceAttempts[0];
-      const schedule = p.revisionSchedules[0];
-
-      const lastPracticedAt =
-        schedule?.lastPracticedAt || (latestAttempt ? latestAttempt.createdAt : null);
-      const nextReviewAt = schedule?.nextReviewAt || null;
-
-      const reviewInfo = formatNextReviewTime(nextReviewAt);
-
-      let statusText: "Solved" | "Attempted" | "Unsolved" = "Unsolved";
-      if (isSolved) {
-        statusText = "Solved";
-      } else if (p.practiceAttempts.length > 0) {
-        statusText = "Attempted";
-      }
-
-      return {
-        id: p.id,
-        number: p.leetcodeId,
-        title: p.title,
-        slug: p.slug,
-        difficulty: (p.difficulty as "Easy" | "Medium" | "Hard") || "Easy",
-        tags: p.tags,
-        url: p.url,
-        isSolved,
-        statusText,
-        isDue: reviewInfo.isDue,
-        lastPracticed: formatRelativeTime(lastPracticedAt),
-        lastPracticedAt,
-        nextReview: reviewInfo.text,
-        nextReviewAt,
-        attemptCount: p.practiceAttempts.length,
-      };
-    });
-
-    // 4. Compute overall collection stats
+    // Compute overall collection stats
     const totalCount = allItems.length;
     const solvedCount = allItems.filter((p) => p.isSolved).length;
     const dueCount = allItems.filter((p) => p.isDue).length;
 
-    // 5. Apply filters
+    // Apply filters in memory (instant, 0ms DB roundtrip)
     const cleanQ = q.trim().toLowerCase();
     const queryNum = cleanQ.replace(/^#/, "");
 
@@ -463,7 +488,7 @@ export async function getProblemsLibrary(
       return true;
     });
 
-    // 6. Pagination
+    // Pagination
     const validLimit = Math.max(1, Math.min(50, limit));
     const totalPages = Math.ceil(filtered.length / validLimit) || 1;
     const currentPage = Math.min(Math.max(1, page), totalPages);
@@ -502,27 +527,33 @@ export async function getProblemsLibrary(
 }
 
 /**
- * Fetches a single problem by its slug from Neon PostgreSQL,
- * including its accepted solutions, revision schedules, and practice attempts.
+ * Fetches a single problem by its slug with caching
  */
 export async function getProblemBySlug(slug: string) {
-  try {
-    return await prisma.problem.findUnique({
-      where: { slug },
-      include: {
-        solutions: {
-          where: { isAccepted: true },
-          orderBy: { createdAt: "asc" },
-        },
-        revisionSchedules: true,
-        practiceAttempts: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error in getProblemBySlug:", error);
-    return null;
-  }
+  return cachedQuery(
+    `problem-by-slug-${slug}`,
+    async () => {
+      try {
+        return await prisma.problem.findUnique({
+          where: { slug },
+          include: {
+            solutions: {
+              where: { isAccepted: true },
+              orderBy: { createdAt: "asc" },
+            },
+            revisionSchedules: true,
+            practiceAttempts: {
+              orderBy: { createdAt: "asc" },
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Error in getProblemBySlug:", error);
+        return null;
+      }
+    },
+    { ttlSeconds: 120, tags: [CACHE_TAGS.PROBLEM_SLUG(slug), CACHE_TAGS.PROBLEMS_LIBRARY] }
+  );
 }
+
 

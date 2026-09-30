@@ -20,6 +20,8 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 
 export default function RootLayout({
   children,
@@ -29,13 +31,24 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-full bg-slate-50 text-slate-900 font-sans">
-        <AuthProvider>
-          <AppShell>{children}</AppShell>
-        </AuthProvider>
+      <body className="h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans transition-colors duration-150">
+        <QueryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem={true}
+            disableTransitionOnChange
+          >
+            <AuthProvider>
+              <AppShell>{children}</AppShell>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );
 }
+

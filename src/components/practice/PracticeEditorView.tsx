@@ -23,12 +23,22 @@ import {
 import { DifficultyBadge } from "@/components/ui/DifficultyBadge";
 import { TopicBadge } from "@/components/ui/TopicBadge";
 import { useAuth } from "@/components/providers/AuthProvider";
+import { useTheme } from "next-themes";
+import { useInvalidateQueries } from "@/hooks/useQueries";
 import {
   SUPPORTED_LANGUAGES,
   SupportedLanguage,
   getStarterTemplate,
 } from "@/lib/starter-templates";
 import { HowDidThisFeelModal } from "./HowDidThisFeelModal";
+import {
+  getRandomMessage,
+  AMBIENT_MESSAGES,
+  AFTER_SAVE_MESSAGES,
+  HARD_PROBLEM_MESSAGES,
+  type MotivationalMessage,
+} from "@/data/motivational-messages";
+import { MotivationalBanner } from "@/components/ui/MotivationalBanner";
 
 // Dynamically load Monaco Editor with SSR disabled for Next.js App Router
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -113,7 +123,14 @@ export function PracticeEditorView({
   const [isDraftRestored, setIsDraftRestored] = useState(false);
   const [showFeelModal, setShowFeelModal] = useState(false);
   const [showStreakBroken, setShowStreakBroken] = useState(false);
+  // Ambient message shown in the editor footer (picked once on mount, client-side only)
+  const [ambientMessage, setAmbientMessage] = useState<MotivationalMessage | null>(null);
+  // Post-save cheer message shown after a successful save
+  const [saveMessage, setSaveMessage] = useState<MotivationalMessage | null>(null);
   const isInitialMount = useRef(true);
+
+  const { resolvedTheme } = useTheme();
+  const { invalidateDashboard, invalidateProblems, invalidateProblem } = useInvalidateQueries();
 
   // Storage key generator for persistent local drafts
   const getStorageKey = useCallback(
@@ -184,6 +201,15 @@ export function PracticeEditorView({
     setTimeout(() => setNotification(null), 2500);
   };
 
+  // Pick ambient motivational message once on mount (client-side only)
+  useEffect(() => {
+    const pool =
+      problem.difficulty === "Hard"
+        ? HARD_PROBLEM_MESSAGES
+        : AMBIENT_MESSAGES;
+    setAmbientMessage(getRandomMessage(pool));
+  }, [problem.difficulty]);
+
   // Save Practice Attempt (never overwrites previous attempts)
   const handleSaveAttempt = async () => {
     if (!code.trim()) {
@@ -217,10 +243,19 @@ export function PracticeEditorView({
           incrementStreak(data.streak);
         }
 
+        // Invalidate TanStack client caches so dashboard and problems are refreshed
+        invalidateDashboard();
+        invalidateProblems();
+        invalidateProblem(problem.slug);
+
         if (data.streakBroke) {
           // Streak was broken — show break popup instead of normal notification
           setShowStreakBroken(true);
         } else {
+          // Pick a fresh cheer message for post-save
+          setSaveMessage(getRandomMessage(AFTER_SAVE_MESSAGES));
+          // Also rotate the ambient message for next time
+          setAmbientMessage(getRandomMessage(AMBIENT_MESSAGES));
           setNotification(
             data.message || `Practice attempt saved! Streak: ${data.streak} day${data.streak === 1 ? "" : "s"}.`
           );
@@ -460,7 +495,7 @@ export function PracticeEditorView({
           </div>
 
           {/* Monaco Editor Container */}
-          <div className="flex-1 w-full min-h-[350px] relative bg-white">
+          <div className="flex-1 w-full min-h-[350px] relative bg-white dark:bg-[#1e1e1e]">
             <MonacoEditor
               height="100%"
               language={
@@ -469,7 +504,7 @@ export function PracticeEditorView({
               }
               value={code}
               onChange={handleCodeChange}
-              theme="light"
+              theme={resolvedTheme === "dark" ? "vs-dark" : "light"}
               options={{
                 fontSize: 13.5,
                 lineNumbers: "on",
@@ -493,14 +528,30 @@ export function PracticeEditorView({
             />
           </div>
 
-          {/* Footer Bar: Auto-save status and recall tip */}
-          <div className="px-4 py-2 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span>Draft auto-saved locally</span>
-            </div>
-            <span className="text-slate-400">
-              Practice from recall · Syntax highlighting active
+          {/* Footer Bar: motivational message + auto-save status */}
+          <div className="px-4 py-2 bg-slate-50/80 border-t border-slate-200/80 flex items-center justify-between gap-3 text-[11px] text-slate-500 shrink-0 min-h-[36px]">
+            {saveMessage ? (
+              /* Post-save cheer — shown for a few seconds after saving */
+              <MotivationalBanner
+                message={saveMessage}
+                variant="inline"
+                className="flex-1"
+              />
+            ) : ambientMessage ? (
+              /* Ambient motivational message on page load */
+              <MotivationalBanner
+                message={ambientMessage}
+                variant="inline"
+                className="flex-1"
+              />
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Draft auto-saved locally</span>
+              </div>
+            )}
+            <span className="text-slate-400 shrink-0 hidden sm:block">
+              Practice from recall
             </span>
           </div>
         </div>
